@@ -1,0 +1,42 @@
+# ---------------------------------------------------------------
+#  VozFlow - arquivos que nao vao para o repositorio
+# ---------------------------------------------------------------
+
+# Ambiente virtual criado pelo instalar.bat (~2,5 GB)
+.venv/
+venv/
+env/
+
+# Cache do Python
+__pycache__/
+*.py[cod]
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Saida do PyInstaller (~1 GB) e do Inno Setup (~500 MB).
+# Os binarios sao publicados como Release do GitHub, nunca versionados:
+# passam do limite de 100 MB por arquivo e incham o historico para sempre.
+build/
+dist/
+instalador/
+*.exe
+
+# Logs de build e de execucao
+*.log
+build-*.log
+iss-*.log
+
+# Configuracao e historico do usuario (ficam em %APPDATA%\VozFlow,
+# mas ninguem quer versionar isso caso apareca aqui)
+config.json
+config.json.bak
+transcricoes.txt
+
+# Sistema operacional / editores
+Thumbs.db
+desktop.ini
+*.swp
+.idea/
+.vscode/

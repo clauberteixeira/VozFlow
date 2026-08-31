@@ -1,0 +1,458 @@
+"""Motor de transcricao ao vivo com faster-whisper rodando em thread propria.
+
+A gravacao e fatiada em trechos delimitados por silencio. Enquanto um trecho
+esta aberto, ele e retranscrito a cada `partial_interval` segundos para
+alimentar o overlay (texto provisorio). Quando o silencio fecha o trecho, ele
+e transcrito uma ultima vez com mais qualidade e vira texto definitivo.
+"""
+
+from __future__ import annotations
+
+import os
+import queue
+import sys
+import time
+from pathlib import Path
+
+import numpy as np
+from PySide6 import QtCore
+
+from . import modelo as modelo_util
+from . import texto as texto_util
+from .audio import SAMPLE_RATE, Recorder, SpeechDetector, rms_level
+
+
+_cuda_preparado = False
+
+
+def _prepare_cuda_dlls() -> list[str]:
+    """Deixa o cuBLAS/cuDNN dos pacotes nvidia-* alcancaveis pelo ctranslate2.
+
+    Nao basta `os.add_dll_directory`: o ctranslate2 carrega essas DLLs com
+    LoadLibrary sem sinalizador de busca estendida, entao elas precisam estar
+    tambem no PATH do processo.
+    """
+    global _cuda_preparado
+    if os.name != "nt" or _cuda_preparado:
+        return []
+
+    raizes: list[str] = []
+
+    # Empacotado: as DLLs vao para <bundle>/nvidia/... e o pacote `nvidia` pode
+    # nem ser importavel, porque so os binarios sao copiados. Por isso o caminho
+    # do bundle e procurado direto, antes de tentar o import.
+    if getattr(sys, "frozen", False):
+        base = Path(getattr(sys, "_MEIPASS", "") or Path(sys.executable).parent)
+        raizes.append(str(base / "nvidia"))
+
+    try:
+        import nvidia
+
+        # `nvidia` e namespace package: __file__ e None, o caminho vem do __path__
+        raizes += list(getattr(nvidia, "__path__", None) or [])
+        if getattr(nvidia, "__file__", None):
+            raizes.append(str(Path(nvidia.__file__).parent))
+    except ImportError:
+        pass
+
+    if not raizes:
+        return []
+
+    pastas: list[str] = []
+    for raiz in raizes:
+        for sub in sorted(Path(raiz).glob("*/bin")):
+            if sub.is_dir() and str(sub) not in pastas:
+                pastas.append(str(sub))
+                try:
+                    os.add_dll_directory(str(sub))
+                except OSError:
+                    pass
+    if pastas:
+        os.environ["PATH"] = os.pathsep.join(pastas) + os.pathsep + os.environ.get("PATH", "")
+    _cuda_preparado = True
+    return pastas
+
+
+def _cuda_disponivel() -> bool:
+    try:
+        import ctranslate2
+
+        return ctranslate2.get_cuda_device_count() > 0
+    except Exception:
+        return False
+
+
+class LiveTranscriber(QtCore.QThread):
+    """Thread dona do microfone e do modelo Whisper."""
+
+    ready = QtCore.Signal(str)          # modelo carregado (descricao do backend)
+    status = QtCore.Signal(str)         # mensagem curta p/ overlay e tray
+    level = QtCore.Signal(float)        # 0..1, volume do microfone
+    text = QtCore.Signal(str, bool)     # (texto acumulado, trecho_fechado)
+    segmento = QtCore.Signal(str)       # so o trecho novo, para inserir ao vivo
+    done = QtCore.Signal(str)           # gravacao encerrada -> texto final
+    dica = QtCore.Signal(str)          # aviso util durante a gravacao
+    baixando = QtCore.Signal(bool)     # esta baixando o modelo agora?
+    failed = QtCore.Signal(str)
+
+    def __init__(self, cfg, parent=None):
+        super().__init__(parent)
+        self.cfg = cfg
+        self._cmds: queue.Queue[str] = queue.Queue()
+        self._model = None
+        self._rec = Recorder(device=cfg.get("input_device"))
+        self._vad = SpeechDetector()
+        self._recording = False
+        self._reset_buffers()
+        self.backend = "?"
+
+    # ------------------------------------------------------------------
+    # API publica (chamada pela thread principal)
+    # ------------------------------------------------------------------
+    def cmd_start(self) -> None:
+        self._cmds.put("start")
+
+    def cmd_stop(self) -> None:
+        self._cmds.put("stop")
+
+    def cmd_cancel(self) -> None:
+        self._cmds.put("cancel")
+
+    def cmd_quit(self) -> None:
+        self._cmds.put("quit")
+
+    @property
+    def recording(self) -> bool:
+        return self._recording
+
+    # ------------------------------------------------------------------
+    # Estado interno
+    # ------------------------------------------------------------------
+    def _reset_buffers(self) -> None:
+        self._buf = np.empty(0, dtype=np.float32)
+        self._committed: list[str] = []
+        self._partial = ""
+        self._silence = 0.0
+        self._had_speech = False
+        self._last_partial = 0.0
+        self._emitido: list[str] = []      # palavras ja escritas na janela
+        self._partial_ant: list[str] = []  # parcial anterior, para comparar
+        self._chaves_ant: list[str] = []   # a mesma, sem pontuacao
+        self._piso = 0.0005                # piso de ruido, recalibrado ao vivo
+        self._perto = False                # esta chegando voz de perto agora?
+        self._rejeitado = 0.0              # segundos de som barrado pelo portao
+        self._avisou = False
+
+    def _full_text(self) -> str:
+        partes = [p for p in (*self._committed, self._partial) if p]
+        # colapsa tambem repeticao que atravessa a fronteira entre trechos
+        return texto_util.colapsar_repeticoes(" ".join(partes).strip())
+
+    # ------------------------------------------------------------------
+    # Modelo
+    # ------------------------------------------------------------------
+    def _load_model(self) -> bool:
+        _prepare_cuda_dlls()  # antes de qualquer import que carregue o ctranslate2
+        from faster_whisper import WhisperModel
+
+        device = self.cfg.get("device", "auto")
+        compute = self.cfg.get("compute_type", "auto")
+        if device == "auto":
+            device = "cuda" if _cuda_disponivel() else "cpu"
+        if compute == "auto":
+            compute = "float16" if device == "cuda" else "int8"
+
+        nome = self.cfg.get("model", "small")
+
+        # Primeiro uso numa maquina nova: 1,6 GB para baixar. Sem mostrar isso o
+        # app parece travado - foi o que aconteceu com o primeiro usuario que
+        # instalou o pacote.
+        try:
+            if not modelo_util.ja_baixado(nome):
+                self.baixando.emit(True)
+                caminho = modelo_util.garantir(
+                    nome, lambda _f, _t, texto: self.status.emit(texto)
+                )
+                self.baixando.emit(False)
+            else:
+                caminho = modelo_util.garantir(nome)
+        except Exception as exc:  # noqa: BLE001
+            self.baixando.emit(False)
+            self.failed.emit(modelo_util.explicar_falha(exc))
+            return False
+
+        tentativas = [(device, compute)]
+        if device == "cuda":
+            tentativas.append(("cpu", "int8"))  # fallback se a GPU nao servir
+
+        ultimo_erro = None
+        for dev, ct in tentativas:
+            try:
+                self.status.emit("Carregando o modelo na " + ("GPU" if dev == "cuda" else "CPU") + "...")
+                self._model = WhisperModel(caminho, device=dev, compute_type=ct)
+                self.backend = nome + " / " + dev + " / " + ct
+                self._aquecer()
+                self.ready.emit(self.backend)
+                return True
+            except Exception as exc:  # noqa: BLE001
+                ultimo_erro = exc
+                if dev == "cuda":
+                    self.status.emit("GPU indisponivel, caindo para CPU...")
+        self.failed.emit("Nao consegui carregar o modelo: " + str(ultimo_erro))
+        return False
+
+    def _aquecer(self) -> None:
+        """A primeira inferencia e sempre lenta; faz ela agora e nao no primeiro uso."""
+        try:
+            mudo = np.zeros(SAMPLE_RATE, dtype=np.float32)
+            idioma = self.cfg.get("language") or None
+            list(self._model.transcribe(mudo, language=idioma)[0])
+        except Exception:
+            pass
+
+    def _transcrever(self, audio: np.ndarray, final: bool) -> str:
+        if self._model is None or audio.size < int(SAMPLE_RATE * 0.25):
+            return ""
+
+        # Portao de energia: o Whisper inventa frases inteiras quando recebe
+        # audio quase mudo ("Descender.", "Legendas pela comunidade..."), e o
+        # VAD sozinho as vezes confunde ruido de sala com fala. Ruido ambiente
+        # fica na casa de 1e-5 de RMS; fala fica acima de 1e-2.
+        rms = float(np.sqrt(np.mean(np.square(audio))))
+        pico = float(np.max(np.abs(audio)))
+        # O limiar acompanha a sala: medi 0,000015 de ruido num momento e
+        # 0,0039 em outro, na mesma maquina. Um numero fixo ou barra fala baixa
+        # ou deixa passar chiado; 3x o piso medido se ajusta sozinho.
+        limiar = max(float(self.cfg.get("nivel_minimo", 0.004)), 3.0 * self._piso)
+        if rms < limiar and pico < 0.05:
+            return ""
+        # Nada de realimentar o texto ja transcrito aqui: prender o decoder ao
+        # proprio resultado anterior e o que faz ele travar repetindo a ultima
+        # palavra ate o fim do trecho.
+        prompt = (self.cfg.get("initial_prompt") or "").strip()
+        try:
+            segments, _info = self._model.transcribe(
+                audio,
+                language=self.cfg.get("language") or None,
+                beam_size=5 if final else 1,
+                # Lista de temperaturas, nao 0.0 fixo: e o que permite ao
+                # faster-whisper detectar saida degenerada pelo
+                # compression_ratio_threshold e redecodificar.
+                temperature=[0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
+                compression_ratio_threshold=2.4,
+                log_prob_threshold=-1.0,
+                no_speech_threshold=0.6,
+                # repetition_penalty fica em 1.0 de proposito: medido em
+                # 1.15 ele trocava palavras corretas ("de ditado" -> "digitado")
+                # sem ganho contra o loop, que ja e barrado pelo fallback de
+                # temperatura, pelo portao de energia e pelo texto.colapsar.
+                vad_filter=False,
+                condition_on_previous_text=False,
+                initial_prompt=prompt or None,
+                word_timestamps=False,
+            )
+            bruto = " ".join(s.text.strip() for s in segments).strip()
+            return texto_util.limpar(bruto, prompt)
+        except Exception as exc:  # noqa: BLE001
+            self.failed.emit("Falha ao transcrever: " + str(exc))
+            return ""
+
+    # ------------------------------------------------------------------
+    # Loop principal
+    # ------------------------------------------------------------------
+    def run(self) -> None:  # noqa: C901 - maquina de estados simples
+        if not self._load_model():
+            return
+        self.status.emit("Pronto")
+        while True:
+            try:
+                cmd = self._cmds.get(timeout=0.02 if self._recording else 0.15)
+            except queue.Empty:
+                cmd = None
+
+            if cmd == "quit":
+                break
+            if cmd == "start" and not self._recording:
+                self._iniciar()
+            elif cmd == "stop" and self._recording:
+                self._encerrar(entregar=True)
+            elif cmd == "cancel" and self._recording:
+                self._encerrar(entregar=False)
+
+            if self._recording:
+                self._pump()
+
+        self._rec.stop()
+
+    def _iniciar(self) -> None:
+        self._reset_buffers()
+        self._vad = SpeechDetector()
+        self._rec.device = self.cfg.get("input_device")  # pode ter mudado no menu
+        try:
+            self._rec.start()
+        except Exception as exc:  # noqa: BLE001
+            self.failed.emit("Microfone indisponivel: " + str(exc))
+            return
+        if self._rec.aviso:
+            self.dica.emit(self._rec.aviso)
+        self._recording = True
+        self._last_partial = time.monotonic()
+        self.status.emit("Gravando")
+        self.text.emit("", False)
+
+    def _pump(self) -> None:
+        chunk = self._rec.drain()
+        if chunk.size:
+            self._buf = np.concatenate([self._buf, chunk]) if self._buf.size else chunk
+            self.level.emit(rms_level(chunk))
+            nivel = float(np.sqrt(np.mean(np.square(chunk))))
+
+            # Portao de proximidade: quem fala no microfone chega muito mais
+            # forte que uma conversa do outro lado da sala. Com histerese, para
+            # uma silaba fraca no meio da palavra nao picotar a frase.
+            limiar = max(float(self.cfg.get("nivel_fala", 0.0)), 4.0 * self._piso)
+            if self._perto:
+                limiar *= 0.45
+            perto = nivel >= limiar
+
+            eh_voz = self._vad(chunk)
+            dur = chunk.size / SAMPLE_RATE
+
+            # Piso de ruido como rastreador de minimo: desce rapido, sobe
+            # devagar. Uma media simples subia ate o nivel do som sustentado e
+            # o absorvia como se fosse ruido - inclusive a voz fraca que o
+            # portao acabara de barrar, que era justamente o que eu precisava
+            # detectar para avisar o usuario.
+            if nivel < self._piso:
+                self._piso = 0.7 * self._piso + 0.3 * nivel
+            else:
+                self._piso = 0.995 * self._piso + 0.005 * nivel
+
+            if eh_voz and perto:
+                self._perto = True
+                self._had_speech = True
+                self._silence = 0.0
+                self._rejeitado = 0.0
+            else:
+                self._perto = False
+                self._silence += dur
+
+                # Chega som claramente acima do ruido, mas fraco demais para o
+                # portao. Ficar mudo sem explicar e o pior desfecho possivel.
+                # Nao exijo o VAD aqui: com voz muito fraca ele proprio ja nao
+                # a reconhece como fala.
+                # Acumula com decaimento em vez de zerar: fala tem pausa entre
+                # silabas o tempo todo, e zerar a cada queda fazia o contador
+                # nunca alcancar o limite - o aviso jamais disparava.
+                if nivel > max(3.0 * self._piso, 0.0008):
+                    self._rejeitado += dur
+                else:
+                    self._rejeitado = max(0.0, self._rejeitado - dur * 0.25)
+
+                if self._rejeitado > 1.5 and not self._had_speech and not self._avisou:
+                    self._avisou = True
+                    self.dica.emit(
+                        "Nao estou captando sua voz - o som esta fraco demais. "
+                        "Fale mais perto do microfone ou use "
+                        "'Calibrar microfone' na bandeja."
+                    )
+        else:
+            time.sleep(0.02)
+
+        if not self._had_speech:
+            # so silencio ate agora: nao deixa o buffer crescer, mas guarda um
+            # respiro para nao cortar o comeco da primeira palavra
+            respiro = int(SAMPLE_RATE * 0.4)
+            if self._buf.size > respiro * 2:
+                self._buf = self._buf[-respiro:]
+            return
+
+        dur = self._buf.size / SAMPLE_RATE
+        fechou = (
+            self._silence * 1000 >= self.cfg.get("silence_ms", 700)
+            or dur >= self.cfg.get("max_segment_s", 20.0)
+        )
+        if fechou:
+            self._fechar_trecho()
+        elif time.monotonic() - self._last_partial >= self.cfg.get("partial_interval", 0.9):
+            self._partial = self._transcrever(self._buf, final=False)
+            self._last_partial = time.monotonic()
+            self._emitir_estavel(self._partial)
+            self.text.emit(self._full_text(), False)
+
+    def _emitir_estavel(self, parcial: str) -> None:
+        """Solta as palavras que pararam de mudar entre duas parciais.
+
+        Esperar o silencio fechar o trecho custava ate 8 s ate a primeira
+        palavra aparecer na tela. Uma palavra que sobreviveu a duas
+        transcricoes seguidas do mesmo trecho ja pode ser escrita: a ultima
+        fica de fora porque ainda muda quando chega mais audio.
+        """
+        palavras = parcial.split()
+        # Compara sem pontuacao nem acento: o Whisper troca "Bom dia!" por
+        # "Bom dia," entre duas parciais e a palavra deixaria de "bater",
+        # custando uma rodada inteira antes de qualquer texto aparecer.
+        chaves = [texto_util._chave(p) for p in palavras]
+        comum = 0
+        for a, b in zip(chaves, self._chaves_ant):
+            if a != b:
+                break
+            comum += 1
+        self._partial_ant = palavras
+        self._chaves_ant = chaves
+
+        novas = palavras[len(self._emitido):max(0, comum - 1)]
+        if novas:
+            self._emitido.extend(novas)
+            self.segmento.emit(" ".join(novas))
+
+    def _emitir_resto(self, texto: str) -> None:
+        """Fim do trecho: escreve o que a versao final trouxe alem do que ja foi."""
+        resto = texto.split()[len(self._emitido):]
+        if resto:
+            self.segmento.emit(" ".join(resto))
+        self._emitido = []
+        self._partial_ant = []
+        self._chaves_ant = []
+
+    def _fechar_trecho(self) -> None:
+        audio, self._buf = self._buf, np.empty(0, dtype=np.float32)
+        self._silence = 0.0
+        self._had_speech = False
+        self._partial = ""
+        texto = self._transcrever(audio, final=True)
+        if texto:
+            self._committed.append(texto)
+        self._emitir_resto(texto or "")
+        self._last_partial = time.monotonic()
+        self.text.emit(self._full_text(), True)
+
+    def _encerrar(self, entregar: bool) -> None:
+        self._recording = False
+        self._rec.stop()          # para o callback primeiro...
+        resto = self._rec.drain()  # ...e so entao esvazia a fila, sem perder nada
+        if not entregar:
+            self._reset_buffers()
+            self.status.emit("Cancelado")
+            self.done.emit("")
+            return
+
+        self.status.emit("Transcrevendo...")
+        if resto.size:
+            if self._vad(resto):  # fala nos ultimos milissegundos antes do atalho
+                self._had_speech = True
+            self._buf = np.concatenate([self._buf, resto]) if self._buf.size else resto
+
+        # Sem o guarda de fala, o silencio residual seria transcrito e o Whisper
+        # alucinaria repetindo a ultima frase do initial_prompt.
+        if self._had_speech and self._buf.size >= int(SAMPLE_RATE * 0.25):
+            texto = self._transcrever(self._buf, final=True)
+            if texto:
+                self._committed.append(texto)
+            self._emitir_resto(texto or "")
+        self._partial = ""
+        final = self._full_text()
+        self._buf = np.empty(0, dtype=np.float32)
+        self.text.emit(final, True)
+        self.done.emit(final)
+        self.status.emit("Pronto")

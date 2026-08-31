@@ -1,0 +1,250 @@
+================================================================================
+  VOZFLOW  -  DITADO POR VOZ OFFLINE PARA WINDOWS
+  Como o projeto foi feito: arquitetura, motor e decisoes tecnicas
+  Versao 1.1.0  -  3463 linhas de Python
+================================================================================
+
+
+1. O QUE E
+--------------------------------------------------------------------------------
+
+Voce aperta uma tecla, fala, e o texto vai sendo escrito dentro do campo que
+estiver em foco ENQUANTO voce ainda esta falando. Ao encerrar, opcionalmente
+ele aperta Enter e ja envia (WhatsApp, chat, etc).
+
+Roda 100% offline. Nenhum audio sai da maquina: o modelo de transcricao roda
+local, na GPU. Fica como icone na bandeja do Windows e inicia junto com o
+sistema.
+
+
+2. O MOTOR DE TRANSCRICAO
+--------------------------------------------------------------------------------
+
+  Modelo:      Whisper large-v3-turbo (OpenAI)
+  Runtime:     faster-whisper 1.2.1
+  Backend:     CTranslate2 4.8.1  (reimplementacao do Whisper em C++,
+                                   4x mais rapido que o whisper original)
+  Aceleracao:  CUDA float16 numa RTX 4060 (8 GB)
+  Fallback:    cai para CPU/int8 sozinho se nao houver GPU
+
+O modelo tem 1,6 GB e e baixado do HuggingFace na primeira execucao, uma vez
+so, ficando em %USERPROFILE%\.cache\huggingface.
+
+Parametros de decodificacao usados:
+
+  beam_size                    5 no texto final, 1 nas previas
+  temperature                  [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]  (fallback)
+  compression_ratio_threshold  2.4    -> detecta loop de repeticao
+  no_speech_threshold          0.6
+  condition_on_previous_text   False  -> evita arrastar alucinacao
+  vad_filter                   False  -> o VAD e feito fora, pelo WebRTC
+  word_timestamps              False  -> nao precisamos, e custa tempo
+
+
+3. A ARQUITETURA  -  COMO O AUDIO VIRA TEXTO
+--------------------------------------------------------------------------------
+
+  microfone --> Recorder --> VAD --> buffer do trecho --> Whisper --> limpeza --> entrega
+   16 kHz     blocos de    detecta    fecha no          faster-      anti-       escreve
+   mono        100 ms       fala      silencio          whisper     alucinacao   no campo
+
+O truque que da a sensacao de tempo real esta no meio:
+
+  ENQUANTO UM TRECHO ESTA ABERTO, ELE E RETRANSCRITO INTEIRO a cada 0,45 s,
+  e o resultado aparece na janelinha flutuante como texto provisorio.
+  Quando 700 ms de silencio fecham o trecho, ele e transcrito uma ultima vez
+  com mais qualidade (beam_size=5) e vira texto definitivo.
+
+Retranscrever o trecho INTEIRO, em vez de so o pedaco novo, e o que faz o
+texto sair liso: o Whisper corrige o que ele mesmo escreveu antes, conforme o
+contexto cresce. O custo e reprocessar audio ja visto - por isso existe um
+teto de 20 s que fecha o trecho a forca, senao cada retranscricao ficaria
+progressivamente mais cara.
+
+Threads:
+
+  - Thread do Qt        : interface, bandeja, janelinha flutuante
+  - Thread do motor     : captura + Whisper (QThread propria)
+  - Thread de insercao  : escreve o texto em doses de 25 ms
+  - Hook global de teclado (lib `keyboard`) : atalhos
+
+A escrita sai em doses pequenas, com ritmo adaptativo, e nao em blocos: o
+motor entrega 2 ou 3 palavras de uma vez, e colar cada rajada fazia o texto
+saltar e parecer travado.
+
+
+4. DETECCAO DE FALA (VAD) E CALIBRACAO
+--------------------------------------------------------------------------------
+
+VAD principal: WebRTC VAD (webrtcvad-wheels), agressividade 3, frames de 20 ms.
+Fallback: limiar de energia com piso de ruido adaptativo.
+
+Alem do VAD, dois cortes por nivel RMS, porque o Whisper ALUCINA em silencio
+(inventa "Legendas pela comunidade Amara.org" e coisas do genero):
+
+  nivel_minimo (0.004) - abaixo disso o audio nem chega ao modelo
+  nivel_fala   (0.010) - abaixo disso e som de fundo, nao voce
+
+Esses numeros dependem do microfone e de quao perto a pessoa fala, entao o app
+tem um "Calibrar com a minha voz": mede o ambiente em silencio, depois mede a
+voz, e coloca o limiar na media geometrica entre os dois.
+
+
+5. STACK COMPLETA
+--------------------------------------------------------------------------------
+
+  Python                3.12.10
+
+  faster-whisper        1.2.1      transcricao
+  ctranslate2           4.8.1      runtime C++ do modelo
+  tokenizers            0.23.1
+  huggingface-hub       1.28.0     download do modelo
+  av                    18.1.0     (dependencia do faster-whisper)
+  nvidia-cublas-cu12    12.9.2.10  multiplicacao de matrizes na GPU
+
+  sounddevice           0.5.6      captura de audio (PortAudio)
+  webrtcvad-wheels      2.0.14     deteccao de voz
+  numpy                 2.5.2      buffers de audio
+
+  PySide6-Essentials    6.11.2     interface (Qt6): bandeja + janela flutuante
+  keyboard              0.13.5     atalhos globais de baixo nivel
+  pyperclip             1.11.0     area de transferencia
+  requests              2.34.2     modo webhook
+
+  pyinstaller           6.22.2     empacotamento
+  Inno Setup 6                     instalador
+
+
+6. ESTRUTURA DO CODIGO
+--------------------------------------------------------------------------------
+
+  main.py                57   entrada; mutex de instancia unica
+  vozflow/app.py        824   bandeja, atalhos, orquestracao, sons
+  vozflow/transcriber   458   motor: trechos, previas, Whisper
+  vozflow/configuracoes 540   janela de ajustes (4 abas)
+  vozflow/audio.py      274   captura, VAD, resolucao do microfone
+  vozflow/atalhos.py    235   captura e validacao de teclas
+  vozflow/overlay.py    226   janela flutuante que nunca rouba foco
+  vozflow/calibracao    172   mede ambiente e voz
+  vozflow/modelo.py     138   download com progresso
+  vozflow/janela.py     133   prende a escrita na janela de origem
+  vozflow/config.py     137   config.json, padroes e migracoes
+  vozflow/inserter.py   123   colar / digitar / copiar / webhook
+  vozflow/texto.py       82   anti-repeticao e anti-eco do prompt
+  vozflow/diagnostico    64   checagem de ambiente
+
+
+7. EMPACOTAMENTO
+--------------------------------------------------------------------------------
+
+PyInstaller (modo onedir) + Inno Setup. Instala sem pedir administrador, em
+%LOCALAPPDATA%\Programs\VozFlow.
+
+O pacote saia com 2.306 MB. Foi para ~1.000 MB cortando, com medicao:
+
+  cuDNN inteiro       1.011 MB   o ctranslate2 nao usa cuDNN no caminho do
+                                 Whisper. Removido: texto identico, mesma
+                                 velocidade (1.01x), continua na GPU.
+  NVRTC                 178 MB   compilacao de kernels em runtime, sem uso
+  onnxruntime            39 MB   so servia ao VAD Silero, que nao usamos
+  opengl32sw.dll         20 MB   OpenGL por software do Qt
+
+O que NAO da para cortar: cublasLt64 (638 MB) e cublas64 (98 MB) - sao o piso
+da versao com GPU. Existe uma variante so-CPU de ~260 MB.
+
+
+8. PROBLEMAS DE VERDADE QUE APARECERAM  (a parte interessante)
+--------------------------------------------------------------------------------
+
+Cada um destes custou uma sessao inteira de depuracao:
+
+* PgDn E Num 3 SAO O MESMO SCANCODE (81).
+  So o flag de "tecla estendida" separa os dois, e a lib `keyboard` casa
+  atalho olhando apenas o scancode. Quem escolhia PgDn como atalho via o app
+  ligar sozinho ao digitar numeros no teclado numerico. A solucao foi ler o
+  `is_keypad` do evento. Vale para o bloco todo: End/Num 1, Delete/Num . etc.
+
+* O INDICE DE MICROFONE DO PORTAUDIO NAO E ESTAVEL.
+  A lista renumera sozinha quando qualquer aparelho entra ou sai. O indice
+  salvo passava a apontar para outro dispositivo - as vezes uma SAIDA de
+  audio, com zero canais de entrada - e a gravacao morria com
+  "Unanticipated host error [PaErrorCode -9999]". Hoje a config guarda o NOME.
+
+* O PORTAUDIO NAO ATUALIZA A LISTA SOZINHO.
+  Ela e montada no Pa_Initialize e so muda reinicializando a lib. Como o app
+  sobe junto com o Windows e o fone Bluetooth costuma ser ligado depois, o
+  microfone salvo simplesmente nao existia para o processo.
+
+* FONE BLUETOOTH EXPOE DOIS PERFIS, E O WINDOWS ESCOLHE O ERRADO.
+  O perfil A2DP e estereo mas SO REPRODUZ: o endpoint de microfone que ele
+  mostra nunca captura nada, por definicao. O microfone real esta no perfil
+  HFP/Hands-Free (8-16 kHz mono), que some da lista quando nenhum app o usa.
+  E o Windows costuma marcar o mic fantasma do A2DP como "Dispositivo Padrao".
+
+* APARELHO BLUETOOTH DESLIGADO NAO SOME DO WINDOWS.
+  Fica listado como "OK", sem mute, volume 100%, entregando SILENCIO DIGITAL
+  em vez de erro. Todo diagnostico de software da "tudo certo". O que denuncia
+  e a forma do sinal: rms constante, linha morta - um microfone vivo com ganho
+  baixo ainda OSCILA quando alguem fala.
+
+* winsound.Beep GERA ONDA QUADRADA.
+  Pelo emulador do alto-falante do PC, e liga/desliga na amplitude cheia:
+  aspero e com estalo nas duas pontas, que num fone Bluetooth virava chiado.
+  Trocado por senoide sintetizada em memoria com envelope (6 ms de ataque,
+  queda longa). E o toque de "iniciar" termina ANTES de o microfone abrir,
+  porque a troca A2DP->HFP corta qualquer som que esteja tocando.
+
+* NAO DA PARA ESCREVER NUMA JANELA CHROMIUM EM SEGUNDO PLANO.
+  Este foi o mais surpreendente. A ideia era continuar escrevendo no VS Code
+  mesmo com o usuario noutra janela. Testado contra uma pagina de teste no
+  Chrome, com o foco fora:
+
+      PostMessage WM_CHAR            -> ignorado
+      SendMessage WM_CHAR            -> ignorado
+      KEYDOWN + CHAR + KEYUP         -> ignorado
+      AttachThreadInput + SetFocus   -> ignorado (e o caractere foi parar
+                                        na janela que estava em foco)
+
+  O Chromium recusa input sintetico vindo de outro processo, e nele nem existe
+  controle filho para receber a mensagem: hwndFocus e a propria janela de topo
+  e hwndCaret e zero, porque o campo de texto e um elemento DOM. Como Chrome,
+  Edge, VS Code, WhatsApp e Discord sao TODOS Chromium, a familia inteira de
+  solucoes "escrever sem foco" esta descartada.
+
+  A saida foi outra: guardar a janela onde a ditada comecou e, se o foco sair
+  dela, SEGURAR o texto em vez de deixa-lo vazar. No fim, traz a janela de
+  volta e entrega tudo. E o retorno do SetForegroundWindow precisa ser
+  VERIFICADO - digitar sem confirmar o foco, com "apertar Enter" ligado,
+  mandaria a mensagem na janela errada.
+
+* O WHISPER ALUCINA DE DUAS FORMAS CLASSICAS.
+  (1) Loop de repeticao: o decoder trava e repete a mesma palavra centenas de
+  vezes. (2) Eco do prompt: com audio curto ou baixo, ele transcreve o proprio
+  initial_prompt como se fosse fala. Ha uma camada de limpeza como ultima
+  linha de defesa antes de o texto ser colado.
+
+* TOCAR EM WIDGET Qt FORA DA THREAD DO Qt derruba o processo com
+  STATUS_STACK_BUFFER_OVERRUN (0xC0000409), sem traceback nenhum. Por isso a
+  thread de insercao avisa a interface por SINAL, nunca mexendo nela direto.
+
+* Alt+Shift NUNCA CHEGA AO APP: o Windows consome essa combinacao para trocar
+  o idioma do teclado. O app recusa essa escolha na tela de configuracoes.
+
+
+9. FUNCIONALIDADES
+--------------------------------------------------------------------------------
+
+  - Escrita ao vivo no campo em foco, enquanto voce fala
+  - Dois pares de atalhos independentes, cada um com sua regra de Enter:
+    uma tecla so escreve, outra escreve e ja envia
+  - Trava de janela: o texto nao vaza se voce trocar de janela no meio
+  - Janelinha flutuante com 7 posicoes, largura e margem configuraveis,
+    que nunca rouba o foco
+  - Destino do texto: colar, digitar tecla a tecla, so copiar, ou webhook
+  - Calibracao de microfone guiada
+  - Historico de tudo que foi ditado
+  - Vocabulario personalizado (nomes proprios, siglas, jargao)
+  - Escolha de modelo (tiny ate large-v3-turbo) e idioma
+
+
+================================================================================

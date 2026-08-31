@@ -1,0 +1,8 @@
+faster-whisper>=1.1.0
+sounddevice>=0.4.6
+numpy>=1.26,<3
+PySide6-Essentials>=6.7
+keyboard>=0.13.5
+pyperclip>=1.9
+requests>=2.31
+webrtcvad-wheels>=2.0.14
