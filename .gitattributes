@@ -1,0 +1,19 @@
+# Normaliza as quebras de linha no repositorio (LF), deixando o checkout
+# no Windows com o que cada ferramenta espera.
+* text=auto
+
+*.py    text eol=lf
+*.md    text eol=lf
+*.txt   text eol=lf
+*.iss   text eol=lf
+*.spec  text eol=lf
+
+# Scripts do Windows precisam de CRLF para o cmd.exe nao engasgar
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+*.vbs   text eol=crlf
+
+# Binarios
+*.ico   binary
+*.exe   binary
+*.png   binary
