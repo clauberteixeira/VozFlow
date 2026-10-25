@@ -17,7 +17,7 @@ falar e a primeira palavra aparecer no campo.
 | prefixo estável, `partial_interval` 0,6 s | 3,6 s | 2,7 s |
 | + comparação sem pontuação | 2,7 s | 1,8 s |
 | + `partial_interval` 0,45 s | 2,4 s | 1,5 s |
-| **+ só o texto novo comparado, `partial_interval` 0,3 s** | — | **1,2 s** |
+| **+ só o texto novo comparado, `partial_interval` 0,3 s** | — | **1,5 s** |
 
 Observações sobre a tabela:
 
@@ -42,7 +42,8 @@ inteiro. Mediana de 3 rodadas por configuração, RTX 4060:
 |---|---|---|---|---|---|
 | 1.2.1 (regra antiga, 0,45 s) | 2,52 s | 3,50 s | 4,08 s | 1,06 s | 6 |
 | regra nova, 0,45 s | 2,14 s | 2,90 s | 3,34 s | 1,12 s | 5 |
-| **regra nova, 0,3 s (1.2.2)** | **1,19 s** | **2,39 s** | **2,81 s** | **0,72 s** | **4** |
+| regra nova, 0,3 s | 1,19 s | 2,39 s | 2,81 s | 0,72 s | 4 |
+| **1.2.2 (regra nova, 0,3 s, com as correções da revisão)** | **1,55 s** | **2,37 s** | **2,92 s** | **0,73 s** | **4** |
 
 | fala sintética | 1ª palavra | atraso típico | atraso p90 | maior engasgo |
 |---|---|---|---|---|
@@ -50,8 +51,12 @@ inteiro. Mediana de 3 rodadas por configuração, RTX 4060:
 | **1.2.2** | **1,79 s** | **1,90 s** | **2,17 s** | **0,34 s** |
 
 O "atraso" vai de quando a palavra termina de ser dita até a última letra dela
-aparecer no campo. Conferido também com o código final da branch (2 rodadas na
-voz real): 1ª palavra 1,19–1,25 s, atraso típico 2,22–2,35 s.
+aparecer no campo. A última linha é o código lançado: a revisão independente
+achou casos raros de palavra duplicada ou perdida com palavra repetida, e uma
+palavra curta cortada ("em" de "embora") saindo cedo. A correção zerou
+duplicações e perdas num fuzz de 20 mil frases e custou 0,35 s na primeira
+palavra (que costuma ser curta e agora espera uma rodada); o atraso típico não
+mudou. A tabela da fala sintética é da regra antes dessas correções.
 
 O que travava: a comparação ia desde o início do trecho, e o Whisper reescreve
 à toa palavras que já estão no campo — só 10 de 25 transcrições liberavam

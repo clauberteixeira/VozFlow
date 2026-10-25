@@ -111,14 +111,21 @@ def _migrar_modelo(lido: dict, data: dict) -> None:
     """
     if "config_versao" not in lido and lido.get("model") == "large-v3-turbo":
         data["model"] = "auto"
+    bruto = lido.get("config_versao")
+    versao = (int(bruto) if isinstance(bruto, (int, float)) and not isinstance(bruto, bool)
+              and math.isfinite(bruto) and float(bruto).is_integer() else 1)
     # versao 3: intervalo padrao entre previas de 0,45 para 0,3 (fluidez)
-    versao = lido.get("config_versao") if isinstance(lido.get("config_versao"), int) else 1
     if versao < 3 and lido.get("partial_interval") == 0.45:
         data["partial_interval"] = 0.3
     # versao 3: a tela nao escolhe mais microfone - sempre o padrao do Windows.
     # Um microfone fixo salvo antes ficaria preso sem jeito de trocar pela tela.
     if versao < 3:
         data["input_device"] = None
+    # Marca como migrado. Sem isto o arquivo continuava "2" e a migracao rodava
+    # a cada abertura, desfazendo o que a pessoa ajustasse depois. Versao mais
+    # nova que esta (app antigo abrindo config de um mais novo) fica como esta.
+    if versao < DEFAULTS["config_versao"]:
+        data["config_versao"] = DEFAULTS["config_versao"]
 
 
 def _tipo_ok(padrao, valor) -> bool:

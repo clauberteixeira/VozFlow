@@ -13,7 +13,7 @@ from PySide6 import QtCore, QtWidgets
 
 from . import atalhos as atl
 from . import config, janela
-from .audio import Recorder, nome_do_padrao, rms_level
+from .audio import Recorder, nome_amigavel, nome_do_padrao, rms_level
 from .inserter import url_sem_criptografia
 from .overlay import POSICOES
 
@@ -210,7 +210,16 @@ class JanelaConfiguracoes(QtWidgets.QDialog):
             f"{v:.5f}" + ("  (desligado - capta qualquer som)" if v <= 0 else "")
         )
 
+    def _microfone_fixo(self) -> str | None:
+        """Microfone escrito a mao no config.json (a tela nao escolhe mais)."""
+        return self.cfg.get("input_device") or None
+
     def _pintar_microfone(self) -> None:
+        fixo = self._microfone_fixo()
+        if fixo:
+            # a ditada usa este: a tela, o medidor e a calibracao tambem
+            self.lbl_mic.setText("Fixado no config.json: " + nome_amigavel(str(fixo)))
+            return
         nome = nome_do_padrao()
         self.lbl_mic.setText(
             "Automatico - segue o microfone padrao do Windows."
@@ -228,7 +237,7 @@ class JanelaConfiguracoes(QtWidgets.QDialog):
         if self._calibrando or self._fechado:
             return
         try:
-            self._medidor = Recorder(device=None)
+            self._medidor = Recorder(device=self._microfone_fixo())
             self._medidor.start()
             self._timer.start(80)
         except Exception:  # noqa: BLE001
@@ -286,7 +295,7 @@ class JanelaConfiguracoes(QtWidgets.QDialog):
     def _rodar_calibracao(self) -> None:
         from .calibracao import _medir, calcular_limiar
 
-        dev = None                       # sempre o padrao do Windows
+        dev = self._microfone_fixo()     # o mesmo que a ditada usa
         try:
             self._msg("Medindo o ambiente... NAO fale.", "#c87f0a")
             fundo = _medir(dev)
@@ -566,7 +575,6 @@ class JanelaConfiguracoes(QtWidgets.QDialog):
         antes = dict(self.cfg)
         self.cfg.update(self._valores_atalhos())
         self.cfg["suppress_hotkeys"] = self.chk_suprimir.isChecked()
-        self.cfg["input_device"] = None      # microfone sempre automatico
         self.cfg["insercao_ao_vivo"] = self.chk_aovivo.isChecked()
         self.cfg["press_enter_after"] = self.chk_enter.isChecked()
         self.cfg["press_enter_after2"] = self.chk_enter2.isChecked()

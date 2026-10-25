@@ -121,6 +121,31 @@ def _resto_depois_do_emitido(emitido: list[str], final: list[str]) -> list[str]:
     return final[fim:]
 
 
+def _onde_termina_o_emitido(emitido: list[str], previa: list[str]) -> int:
+    """Indice da previa logo depois do que ja foi digitado.
+
+    Quando o comeco da previa cobre o digitado palavra por palavra - mesmas
+    letras no total (folga de 20%) e a ultima palavra parecida -, o corte e
+    pela posicao: o Whisper so trocou palavras 1 para 1 ("muitos" -> "muito",
+    "cum" -> "com"). O alinhamento do _resto_depois_do_emitido fica para
+    quando a quantidade mudou ("para o carro" -> "pro carro azul"). Sozinho,
+    com palavra repetida, ele casava o "muito" digitado com o primeiro "muito"
+    de "foi muito muito bom" e o segundo saia de novo na tela. Medido num fuzz
+    de 20 mil frases com previas cortadas, reescritas e encolhendo: so o
+    alinhamento duplicou ou perdeu palavra em 11; assim, em nenhuma.
+    """
+    n = len(emitido)
+    if n and len(previa) >= n:
+        ja = [texto_util._chave(p) for p in emitido]
+        cobre = [texto_util._chave(p) for p in previa[:n]]
+        letras = sum(map(len, ja))
+        ultima = ja[-1] == cobre[-1] or difflib.SequenceMatcher(
+            None, ja[-1], cobre[-1]).ratio() >= 0.5
+        if ultima and abs(sum(map(len, cobre)) - letras) <= max(1, round(letras * 0.2)):
+            return n
+    return len(previa) - len(_resto_depois_do_emitido(emitido, previa))
+
+
 def _cuda_disponivel() -> bool:
     try:
         import ctranslate2
@@ -153,7 +178,7 @@ class LiveTranscriber(QtCore.QThread):
         self._recording = False
         self._reset_buffers()
         self.backend = "?"
-        self._intervalo = float(cfg.get("partial_interval", 0.45))
+        self._intervalo = float(cfg.get("partial_interval", 0.3))
         self._na_cpu = False   # definido ao carregar o modelo
 
     def _proximo_intervalo(self, duracao: float) -> float:
@@ -164,7 +189,7 @@ class LiveTranscriber(QtCore.QThread):
         passava quase o tempo todo retranscrevendo, e o silencio que fecha o
         trecho e o comando de parar demoravam a ser vistos.
         """
-        base = float(self.cfg.get("partial_interval", 0.45))
+        base = float(self.cfg.get("partial_interval", 0.3))
         # Teto de 2 s: uma previa isolada lenta (a primeira da fala, por
         # exemplo) nao pode adiar a seguinte - e preciso duas previas seguidas
         # para uma palavra ser escrita ao vivo.
@@ -522,9 +547,9 @@ class LiveTranscriber(QtCore.QThread):
         """
         palavras = parcial.split()
         # Onde termina o que ja esta na tela, nesta previa e na anterior
-        ini = len(palavras) - len(_resto_depois_do_emitido(self._emitido, palavras))
+        ini = _onde_termina_o_emitido(self._emitido, palavras)
         ant = self._palavras_ant
-        ini_ant = len(ant) - len(_resto_depois_do_emitido(self._emitido, ant))
+        ini_ant = _onde_termina_o_emitido(self._emitido, ant)
         self._palavras_ant = palavras
         # Compara sem pontuacao nem acento: o Whisper troca "Bom dia!" por
         # "Bom dia," entre duas parciais e a palavra deixaria de "bater",
@@ -538,14 +563,21 @@ class LiveTranscriber(QtCore.QThread):
             comum += 1
         # A ultima palavra da previa ainda muda quando chega mais audio
         # ("confir" -> "confirmar"): fica de fora. As outras confirmadas saem.
-        novas = palavras[ini:ini + max(0, min(comum, len(agora) - 1))]
+        n = min(comum, len(agora) - 1)
+        # Palavra curta que era a ULTIMA da previa anterior pode ser pedaco
+        # cortado ("em" de "embora", que o Whisper escreveu "em bora"): espera
+        # mais uma rodada. Palavra de 4+ letras confirmada ja sai.
+        if 0 < n == len(antes) and len(antes[n - 1]) < 4:
+            n -= 1
+        novas = palavras[ini:ini + max(0, n)]
         if novas:
             self._emitido.extend(novas)
             self.segmento.emit(" ".join(novas))
 
     def _emitir_resto(self, texto: str) -> None:
         """Fim do trecho: escreve o que a versao final trouxe alem do que ja foi."""
-        resto = _resto_depois_do_emitido(self._emitido, texto.split())
+        final = texto.split()
+        resto = final[_onde_termina_o_emitido(self._emitido, final):]
         if resto:
             self.segmento.emit(" ".join(resto))
         self._emitido = []

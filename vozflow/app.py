@@ -791,7 +791,7 @@ class VozFlow(QtCore.QObject):
             # NAO chamar esta variavel de `janela`: o modulo `janela` e usado
             # nesta mesma funcao, e uma atribuicao aqui o torna local em todo o
             # corpo dela - `janela.restaurar()` la em cima vira `float.restaurar`.
-            ritmo = max(6.0, float(self.cfg.get("partial_interval", 0.45)) / TICK)
+            ritmo = max(6.0, float(self.cfg.get("partial_interval", 0.3)) / TICK)
             credito += len(pendente) / ritmo
             if credito >= 1.0:
                 n = int(credito)

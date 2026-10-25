@@ -317,18 +317,23 @@ def nome_do_padrao() -> str | None:
     31 letras - "Microfone (H510-PRO USB Gaming ". Mostra o que o PortAudio
     sabe desde o ultimo reinicio, que acontece a cada microfone aberto no
     modo automatico (ver Recorder.start).
+
+    Consulta com a trava: uma ditada que comeca neste instante reinicia o
+    PortAudio (atualizar_lista_dispositivos), e ler a lista no meio do
+    Pa_Terminate le memoria ja liberada.
     """
     try:
-        indice = None
-        for api in sd.query_hostapis():
-            if "WASAPI" in api.get("name", ""):
-                indice = api.get("default_input_device")
-                break
-        if indice is None or indice < 0:
-            indice = sd.default.device[0]
-        if indice is None or indice < 0:
-            return None
-        return nome_amigavel(sd.query_devices()[indice]["name"])
+        with _trava_pa:
+            indice = None
+            for api in sd.query_hostapis():
+                if "WASAPI" in api.get("name", ""):
+                    indice = api.get("default_input_device")
+                    break
+            if indice is None or indice < 0:
+                indice = sd.default.device[0]
+            if indice is None or indice < 0:
+                return None
+            return nome_amigavel(sd.query_devices()[indice]["name"])
     except Exception:  # noqa: BLE001 - sem audio: so nao mostra o nome
         return None
 

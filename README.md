@@ -205,7 +205,7 @@ Medidos numa RTX 4060 com `large-v3-turbo` em float16.
 | prefixo estável, `partial_interval` 0,6 s | 3,6 s | 2,7 s |
 | + comparação sem pontuação | 2,7 s | 1,8 s |
 | + `partial_interval` 0,45 s | 2,4 s | 1,5 s |
-| **+ só o texto novo comparado, `partial_interval` 0,3 s** | — | **1,2 s** |
+| **+ só o texto novo comparado, `partial_interval` 0,3 s** | — | **1,5 s** |
 
 **Cadência da escrita**, mesmo áudio de 20 s, amostrando o campo a cada 50 ms:
 

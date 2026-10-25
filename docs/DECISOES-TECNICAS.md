@@ -210,7 +210,8 @@ início, e qualquer mudança na parte já escrita travava as palavras novas.
 
 Com a comparação só do texto novo, cada transcrição a mais vira texto. Medido
 3 vezes com uma leitura real de 25 s: a primeira palavra caiu de 2,1 s (0,45 s)
-para 1,2 s (0,3 s), e o atraso típico de 2,9 s para 2,4 s. Em 0,2 s o ganho
+para 1,2 s (0,3 s), e o atraso típico de 2,9 s para 2,4 s (com as correções da
+revisão, a primeira palavra ficou em 1,55 s). Em 0,2 s o ganho
 some (2,24 s) e a GPU fica em 98%: parou em 0,3 s. Quem tinha 0,45 s gravado
 só por ser o padrão passa para 0,3 s; valor escolhido à mão fica.
 

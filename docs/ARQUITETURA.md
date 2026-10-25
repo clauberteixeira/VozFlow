@@ -129,7 +129,18 @@ O algoritmo é o **prefixo estável**:
    considerada firme e vai para o campo;
 3. a **última palavra da transcrição** fica retida, porque ela ainda costuma
    mudar quando chega mais áudio ("confir..." vira "confirmar"). Uma palavra
-   firme que já tem outra depois dela sai na hora.
+   firme que já tem outra depois dela sai na hora — menos a palavra **curta**
+   (até 3 letras) que era a última da transcrição anterior: ela pode ser um
+   pedaço ("em" de "embora", que o Whisper escreveu "em bora") e espera mais
+   uma rodada.
+
+Onde termina o que já foi escrito, dentro de cada transcrição nova? Se o começo
+dela cobre o texto escrito com o mesmo total de letras (folga de 20%) e a
+última palavra parecida, o corte é pela posição — o Whisper só trocou palavras
+1 para 1 ("muitos" → "muito"). Só quando a quantidade muda ("para o carro" →
+"pro carro azul") entra o alinhamento palavra a palavra. O alinhamento sozinho,
+com palavra repetida, casava o "muito" escrito com o primeiro "muito" de "foi
+muito muito bom" e escrevia o segundo de novo.
 
 Nada é escrito duas vezes e nada precisa ser apagado.
 

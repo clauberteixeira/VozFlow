@@ -65,14 +65,24 @@ def test_tela_nao_lista_microfones_e_mostra_o_do_windows(qapp, pasta_config, mon
     dlg.deleteLater()
 
 
-def test_salvar_grava_sempre_o_automatico(qapp, pasta_config, monkeypatch):
+def test_microfone_fixado_a_mao_aparece_e_e_o_medido(qapp, pasta_config, monkeypatch):
+    """A ditada usa o input_device escrito no config.json: a aba, o medidor e
+    a calibracao tem de usar o mesmo, senao calibra o microfone errado."""
     from vozflow import configuracoes
 
-    monkeypatch.setattr(configuracoes, "nome_do_padrao", lambda: None)
+    usados = []
+    monkeypatch.setattr(configuracoes, "nome_do_padrao", lambda: "Outro")
+    monkeypatch.setattr(configuracoes, "Recorder", lambda device=None: usados.append(device) or type("R", (), {
+        "start": lambda s: None, "stop": lambda s: None,
+        "drain": lambda s: audio.np.empty(0, dtype="float32")})())
     cfg = config.Config(dict(config.DEFAULTS, input_device="Microphone (Camo)"))
     dlg = configuracoes.JanelaConfiguracoes(cfg)
+    assert "Microphone (Camo)" in dlg.lbl_mic.text() and "Outro" not in dlg.lbl_mic.text()
+    dlg._iniciar_medidor()
+    assert usados == ["Microphone (Camo)"]
     dlg._salvar()
-    assert cfg["input_device"] is None
+    assert cfg["input_device"] == "Microphone (Camo)"      # Salvar nao apaga
+    dlg.done(0)
     dlg.deleteLater()
 
 
