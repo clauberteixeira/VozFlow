@@ -5,7 +5,7 @@ Versionamento [semântico](https://semver.org/lang/pt-BR/).
 
 ---
 
-## [Não lançado]
+## [1.2.0] — 2026-10-24
 
 Correções vindas de uma auditoria do código. Nenhuma muda o visual.
 
@@ -199,4 +199,5 @@ para entender como o app chegou ao estado atual.
 
 ---
 
+[1.2.0]: https://github.com/clauberteixeira/VozFlow/releases/tag/v1.2.0
 [1.1.1]: https://github.com/clauberteixeira/VozFlow/releases/tag/v1.1.1
