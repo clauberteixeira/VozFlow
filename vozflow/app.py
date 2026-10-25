@@ -511,7 +511,7 @@ class VozFlow(QtCore.QObject):
             return
         if not self.pronto:
             # Mostrar o progresso real, nao um "aguarde" generico: na primeira
-            # vez sao 1,6 GB baixando, e sem numero nenhum o app parece travado.
+            # vez e o modelo baixando, e sem numero nenhum o app parece travado.
             msg = self._ultimo_status or "Preparando o VozFlow..."
             if self._baixando:
                 msg += "   -  so na primeira vez"
@@ -634,12 +634,12 @@ class VozFlow(QtCore.QObject):
             self.overlay.set_texto(msg + "   -  so na primeira vez")
 
     def _ao_baixando(self, baixando: bool) -> None:
-        """Primeira execucao: o download de 1,6 GB precisa aparecer sozinho."""
+        """Primeira execucao: o download do modelo precisa aparecer sozinho."""
         self._baixando = baixando
         if baixando:
             self.tray.showMessage(
                 APP_NAME,
-                "Baixando o modelo de transcricao (1,6 GB). Isso acontece uma "
+                "Baixando o modelo de transcricao. Isso acontece uma "
                 "unica vez; o VozFlow avisa quando estiver pronto.",
                 QtWidgets.QSystemTrayIcon.Information, 10000,
             )

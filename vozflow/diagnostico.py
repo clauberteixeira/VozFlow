@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import sys
 
-from . import config
+from . import config, modelo
 from .transcriber import _cuda_disponivel, _prepare_cuda_dlls
 
 
 def main() -> int:
     cfg = config.load()
-    nome = sys.argv[1] if len(sys.argv) > 1 else cfg.get("model", "small")
+    nome = sys.argv[1] if len(sys.argv) > 1 else cfg.get("model", "auto")
 
     print("=" * 60)
     print("VozFlow - diagnostico")
@@ -38,17 +38,22 @@ def main() -> int:
     # --- modelo ---
     from faster_whisper import WhisperModel
 
-    print("Baixando/validando modelo:", nome, "(pode demorar na primeira vez)")
+    # "auto" vira o modelo leve na CPU e o grande na GPU (modelo.resolver_nome):
+    # valida os dois que o app pode carregar nesta maquina.
+    na_cpu = modelo.resolver_nome(nome, "cpu")
+    print("Baixando/validando modelo:", na_cpu, "(pode demorar na primeira vez)")
     try:
-        WhisperModel(nome, device="cpu", compute_type="int8")
+        WhisperModel(na_cpu, device="cpu", compute_type="int8")
         print("Modelo em disco  : ok")
     except Exception as exc:  # noqa: BLE001
         print("ERRO ao baixar   :", exc)
         return 1
 
     if cuda:
+        na_gpu = modelo.resolver_nome(nome, "cuda")
+        print("Modelo para a GPU:", na_gpu)
         try:
-            WhisperModel(nome, device="cuda", compute_type="float16")
+            WhisperModel(na_gpu, device="cuda", compute_type="float16")
             print("Modelo na GPU    : ok (float16)")
         except Exception as exc:  # noqa: BLE001
             print("GPU indisponivel :", exc)

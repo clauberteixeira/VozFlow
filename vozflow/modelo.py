@@ -29,6 +29,21 @@ TAMANHOS_MB = {
 }
 
 
+# "auto": o modelo segue a maquina. Medido no mesmo audio de 17,6 s (docs/
+# DESEMPENHO.md): cada previa do large-v3-turbo leva 12-14 s na CPU (int8),
+# o que torna a escrita ao vivo inutilizavel; o base leva ~1 s e o small ~3 s.
+# Na GPU o large-v3-turbo leva 0,3-0,45 s e segue sendo o padrao.
+MODELO_GPU = "large-v3-turbo"
+MODELO_CPU = "base"
+
+
+def resolver_nome(nome: str, device: str) -> str:
+    """Nome real do modelo para este dispositivo ("auto" vira GPU ou CPU)."""
+    if (nome or "auto") != "auto":
+        return nome
+    return MODELO_GPU if device == "cuda" else MODELO_CPU
+
+
 def repo_do_modelo(nome: str) -> str | None:
     try:
         from faster_whisper.utils import _MODELS
@@ -128,7 +143,7 @@ def explicar_falha(exc: Exception) -> str:
     if any(p in texto for p in ("connection", "network", "timeout", "resolve",
                                 "getaddrinfo", "ssl", "proxy", "temporarily")):
         return ("Nao consegui baixar o modelo: sem acesso a internet. O VozFlow "
-                "precisa baixar 1,6 GB uma unica vez. Verifique a conexao (ou o "
+                "precisa baixa-lo uma unica vez. Verifique a conexao (ou o "
                 "firewall/proxy) e abra o app de novo.")
     if "space" in texto or "disk" in texto or "errno 28" in texto:
         return "Nao consegui baixar o modelo: espaco em disco insuficiente (precisa de ~2 GB)."

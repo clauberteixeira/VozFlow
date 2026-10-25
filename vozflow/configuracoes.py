@@ -17,6 +17,8 @@ from .inserter import url_sem_criptografia
 from .overlay import POSICOES
 
 MODELOS = ["tiny", "base", "small", "medium", "large-v3", "large-v3-turbo"]
+# "auto": large-v3-turbo com GPU, base sem GPU (modelo.resolver_nome)
+ROTULO_AUTO = "Automatico (recomendado: grande com GPU, leve sem GPU)"
 IDIOMAS = [("Portugues", "pt"), ("Ingles", "en"), ("Espanhol", "es"),
            ("Detectar sozinho", "")]
 ACOES = [
@@ -407,9 +409,12 @@ class JanelaConfiguracoes(QtWidgets.QDialog):
     def _aba_geral(self, startup_ativo: bool) -> QtWidgets.QWidget:
         w = QtWidgets.QWidget()
         self.cbo_modelo = QtWidgets.QComboBox()
-        self.cbo_modelo.addItems(MODELOS)
-        self.cbo_modelo.setCurrentText(self.cfg.get("model", "large-v3-turbo"))
-        self._modelo_inicial = self.cbo_modelo.currentText()
+        self.cbo_modelo.addItem(ROTULO_AUTO, "auto")
+        for nome in MODELOS:
+            self.cbo_modelo.addItem(nome, nome)
+        pos = self.cbo_modelo.findData(self.cfg.get("model", "auto"))
+        self.cbo_modelo.setCurrentIndex(max(0, pos))
+        self._modelo_inicial = self.cbo_modelo.currentData()
 
         self.cbo_idioma = QtWidgets.QComboBox()
         for rotulo, chave in IDIOMAS:
@@ -556,7 +561,7 @@ class JanelaConfiguracoes(QtWidgets.QDialog):
         self.cfg["overlay_offset_y"] = self.spin_margem.value()
         self.cfg["action_on_stop"] = self.cbo_acao.currentData()
         self.cfg["webhook_url"] = self.ed_webhook.text().strip()
-        self.cfg["model"] = self.cbo_modelo.currentText()
+        self.cfg["model"] = self.cbo_modelo.currentData()
         self.cfg["language"] = self.cbo_idioma.currentData()
         self.cfg["initial_prompt"] = self.ed_vocab.toPlainText().strip()
         self.cfg["show_overlay"] = self.chk_overlay.isChecked()
@@ -579,5 +584,5 @@ class JanelaConfiguracoes(QtWidgets.QDialog):
             return
 
         self.startup_pedido = self.chk_startup.isChecked()
-        self.modelo_mudou = self.cbo_modelo.currentText() != self._modelo_inicial
+        self.modelo_mudou = self.cbo_modelo.currentData() != self._modelo_inicial
         self.accept()

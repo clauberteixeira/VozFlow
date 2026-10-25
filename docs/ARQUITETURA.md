@@ -242,6 +242,6 @@ Python 3.12. Dependências em `requirements.txt`; as de GPU em
 |---|---|
 | `%APPDATA%\VozFlow\config.json` | toda a configuração |
 | `%APPDATA%\VozFlow\transcricoes.txt` | histórico do que foi ditado |
-| `%USERPROFILE%\.cache\huggingface` | o modelo, 1,6 GB, baixado uma vez só |
+| `%USERPROFILE%\.cache\huggingface` | o modelo, baixado uma vez só (1,6 GB com GPU, ~145 MB sem) |
 | `%LOCALAPPDATA%\Programs\VozFlow\` | o app instalado |
 | `%APPDATA%\...\Startup\VozFlow.vbs` | o que faz iniciar com o Windows |

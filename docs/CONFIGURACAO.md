@@ -50,7 +50,7 @@ A sintaxe das combinações é a da biblioteca
 
 | Chave | Padrão | Para que serve |
 |---|---|---|
-| `model` | `large-v3-turbo` | `tiny`, `base`, `small`, `medium`, `large-v3`, `large-v3-turbo`. Modelos menores são mais rápidos e menos precisos. |
+| `model` | `auto` | `auto` escolhe pela máquina: `large-v3-turbo` com placa NVIDIA, `base` sem GPU. Ou fixe um: `tiny`, `base`, `small`, `medium`, `large-v3`, `large-v3-turbo`. Menor = mais rápido e menos preciso. |
 | `language` | `pt` | Idioma da fala. Deixe `""` (vazio) para detecção automática — custa um pouco mais. |
 | `device` | `auto` | `auto`, `cuda` ou `cpu`. Force `cpu` se quiser poupar a GPU para outra coisa. |
 | `compute_type` | `auto` | `auto`, `float16`, `int8_float16` ou `int8`. |
@@ -60,11 +60,15 @@ A sintaxe das combinações é a da biblioteca
 
 | modelo | tamanho | quando faz sentido |
 |---|---|---|
-| `tiny` / `base` | 75 MB / 145 MB | máquina fraca, sem GPU, tolerando erro |
-| `small` | 464 MB | meio-termo razoável na CPU |
+| `tiny` / `base` | 75 MB / 145 MB | sem GPU; `base` é o que o `auto` usa na CPU (~1 s por prévia) |
+| `small` | 464 MB | CPU forte, querendo mais precisão (~3 s por prévia) |
 | `medium` | 1,5 GB | qualidade boa, GPU modesta |
 | `large-v3` | 3,1 GB | máxima qualidade, mais lento |
-| **`large-v3-turbo`** | **1,6 GB** | **o padrão**: qualidade do large a uma fração do custo |
+| **`large-v3-turbo`** | **1,6 GB** | o que o `auto` usa **com GPU**: qualidade do large a uma fração do custo. Na CPU leva 12–14 s por prévia — inutilizável ao vivo |
+
+Configurações antigas que tinham `large-v3-turbo` só por ser o padrão da 1.1.1
+viram `auto` sozinhas (com GPU continua o mesmo modelo). Uma escolha feita
+depois disso é respeitada.
 
 Trocar de modelo dispara um novo download na primeira execução. Todos ficam em
 `%USERPROFILE%\.cache\huggingface` e são compartilhados entre versões do app.
@@ -162,7 +166,7 @@ vocabulário técnico próprio:
   "hotkey_stop2": "ctrl+alt+f",
   "press_enter_after2": true,
 
-  "model": "large-v3-turbo",
+  "model": "auto",
   "language": "pt",
   "initial_prompt": "Versaty Solar, ConnectaLink, Evolution API, Laravel, kWp, boleto, CRM.",
 

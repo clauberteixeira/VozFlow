@@ -77,7 +77,7 @@ Baixe o instalador na página de [Releases](../../releases) e execute. Ele
 **não pede administrador**, instala em `%LOCALAPPDATA%\Programs\VozFlow` e
 aparece em Aplicativos Instalados do Windows.
 
-Na primeira abertura, o modelo de transcrição (1,6 GB) é baixado uma única vez,
+Na primeira abertura, o modelo de transcrição (1,6 GB com GPU, ~145 MB sem) é baixado uma única vez,
 com progresso visível na janelinha.
 
 ### Desenvolver
@@ -178,7 +178,7 @@ usadas:
 
 | Chave | Padrão | Para que serve |
 |---|---|---|
-| `model` | `large-v3-turbo` | `tiny` … `large-v3`. Menor = mais rápido e menos preciso |
+| `model` | `auto` | `large-v3-turbo` com GPU, `base` sem GPU; ou fixe `tiny` … `large-v3` |
 | `language` | `pt` | `""` para detecção automática |
 | `initial_prompt` | `""` | Vocabulário do seu contexto. **Só lista de termos, nunca prosa** |
 | `nivel_fala` | `0.010` | Abaixo disso é som de fundo. Use a calibração em vez de chutar |

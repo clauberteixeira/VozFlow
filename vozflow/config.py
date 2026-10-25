@@ -33,8 +33,9 @@ DEFAULTS: dict = {
     "press_enter_after2": False,
 
     # --- modelo de transcricao ---
-    # tiny | base | small | medium | large-v3 | large-v3-turbo
-    "model": "large-v3-turbo",
+    # auto | tiny | base | small | medium | large-v3 | large-v3-turbo
+    # auto = large-v3-turbo com GPU, base sem GPU (ver modelo.resolver_nome)
+    "model": "auto",
     "language": "pt",
     "device": "auto",          # auto | cuda | cpu
     "compute_type": "auto",    # auto | float16 | int8_float16 | int8
@@ -69,6 +70,8 @@ DEFAULTS: dict = {
     # Passou disso, fica so com os ultimos `historico_dias` dias.
     "historico_max_mb": 5,
     "historico_dias": 7,
+    # Versao do formato: arquivo sem ela e de antes do modelo "auto" (ver load).
+    "config_versao": 2,
 }
 
 
@@ -93,6 +96,18 @@ def _migrar_microfone(data: dict) -> None:
     except Exception as exc:  # noqa: BLE001 - sem audio: usa o padrao
         print(f"[config] nao consegui migrar input_device={valor} ({exc})")
         data["input_device"] = None
+
+
+def _migrar_modelo(lido: dict, data: dict) -> None:
+    """Config de antes do "auto": large-v3-turbo gravado so por ser o padrao.
+
+    Toda instalacao antiga tem o modelo grande no arquivo, porque o load()
+    sempre gravou os padroes. Sem GPU ele leva 12-14 s por previa; com GPU o
+    "auto" escolhe exatamente o mesmo modelo, entao para quem tem placa nada
+    muda. Escolha feita depois desta versao (config_versao presente) fica.
+    """
+    if "config_versao" not in lido and lido.get("model") == "large-v3-turbo":
+        data["model"] = "auto"
 
 
 def _tipo_ok(padrao, valor) -> bool:
@@ -197,6 +212,7 @@ def load() -> Config:
                 if not isinstance(lido, dict):
                     raise ValueError("o arquivo nao e um objeto JSON")
                 data.update(lido)
+                _migrar_modelo(lido, data)
             except ValueError as exc:   # cobre JSONDecodeError e UnicodeDecodeError
                 print(f"[config] config.json invalido ({exc}); usando padroes")
                 em_disco = None

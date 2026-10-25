@@ -14,7 +14,7 @@ Duas formas: o **instalador pronto** (para usar) ou **rodar do código-fonte**
 | Placa de vídeo | nenhuma — cai para CPU sozinho | NVIDIA com CUDA 12 (RTX 4060 é a de referência) |
 | Memória | 4 GB | 8 GB |
 | Disco | 2,0 GB (variante CPU + modelo) | 3,0 GB (variante GPU + modelo) |
-| Internet | só no primeiro uso, para baixar o modelo (~1,6 GB) | — |
+| Internet | só no primeiro uso, para baixar o modelo (~1,6 GB com GPU, ~145 MB sem) | — |
 
 Sem GPU o VozFlow funciona: ele detecta a ausência e cai para CPU/int8
 sozinho. A diferença é o tempo de transcrição — décimos de segundo na GPU,
@@ -27,6 +27,15 @@ alguns segundos na CPU.
 Baixe o `VozFlow-<versão>-instalador.exe` na página de
 [Releases](../../releases) e execute.
 
+> **"O Windows protegeu o computador"?** O instalador ainda não tem assinatura
+> digital, e o SmartScreen avisa por isso. Clique em **Mais informações →
+> Executar assim mesmo**. Para conferir que o arquivo é o original, compare o
+> hash dele com o publicado na Release (arquivo `.sha256`):
+>
+> ```bat
+> certutil -hashfile VozFlow-<versão>-instalador.exe SHA256
+> ```
+
 O instalador:
 
 - **não pede administrador** — instala em `%LOCALAPPDATA%\Programs\VozFlow`;
@@ -38,9 +47,9 @@ O instalador:
 - ao desinstalar, pergunta se você quer apagar também suas configurações e o
   histórico. Numa desinstalação silenciosa o padrão é **preservar**.
 
-O modelo de transcrição **não vem no instalador**: são 1,6 GB baixados na
-primeira execução e guardados em `%USERPROFILE%\.cache\huggingface`,
-compartilhados entre todas as versões do VozFlow.
+O modelo de transcrição **não vem no instalador**: ele é baixado na primeira
+execução e guardado em `%USERPROFILE%\.cache\huggingface`, compartilhado
+entre todas as versões do VozFlow — 1,6 GB com placa NVIDIA, ~145 MB sem.
 
 ---
 
@@ -92,8 +101,17 @@ py -3.12 -m venv .venv
 
 ## O primeiro uso: o download do modelo
 
-Na primeira abertura o VozFlow baixa o modelo `large-v3-turbo` (1,6 GB) do
-Hugging Face. Isso acontece **uma única vez**.
+Na primeira abertura o VozFlow baixa o modelo do Hugging Face. Isso acontece
+**uma única vez**. Com o modelo no padrão (`auto`), ele escolhe pela máquina:
+
+- **com placa NVIDIA (CUDA):** `large-v3-turbo`, 1,6 GB, cerca de 0,3–0,45 s
+  por prévia;
+- **sem GPU:** `base`, ~145 MB, cerca de 1 s por prévia. O `large-v3-turbo` na
+  CPU levou 12–14 s por prévia na medição — inutilizável ao vivo. Se a sua
+  CPU for forte e você quiser mais precisão, escolha `small` em
+  Configurações → Geral → Modelo (~3 s por prévia na mesma medição).
+
+Os números estão em [Desempenho](DESEMPENHO.md).
 
 Enquanto baixa:
 
@@ -128,7 +146,7 @@ veja [Solução de problemas](SOLUCAO-DE-PROBLEMAS.md).
 |---|---|
 | `%APPDATA%\VozFlow\config.json` | toda a configuração |
 | `%APPDATA%\VozFlow\transcricoes.txt` | histórico do que foi ditado |
-| `%USERPROFILE%\.cache\huggingface` | o modelo, 1,6 GB, baixado uma vez só |
+| `%USERPROFILE%\.cache\huggingface` | o modelo, baixado uma vez só (1,6 GB com GPU, ~145 MB sem) |
 | `%LOCALAPPDATA%\Programs\VozFlow\` | o app instalado |
 | `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\VozFlow.vbs` | o que faz iniciar com o Windows |
 

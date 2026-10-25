@@ -153,6 +153,22 @@ class LiveTranscriber(QtCore.QThread):
         self._recording = False
         self._reset_buffers()
         self.backend = "?"
+        self._intervalo = float(cfg.get("partial_interval", 0.45))
+        self._na_cpu = False   # definido ao carregar o modelo
+
+    def _proximo_intervalo(self, duracao: float) -> float:
+        """Espera ate a proxima previa, conforme a maquina aguenta.
+
+        Previa mais rapida que `partial_interval` (GPU: 0,3-0,45 s) -> nada
+        muda. Mais lenta (CPU) -> folga de 25% da duracao: sem ela o motor
+        passava quase o tempo todo retranscrevendo, e o silencio que fecha o
+        trecho e o comando de parar demoravam a ser vistos.
+        """
+        base = float(self.cfg.get("partial_interval", 0.45))
+        # Teto de 2 s: uma previa isolada lenta (a primeira da fala, por
+        # exemplo) nao pode adiar a seguinte - e preciso duas previas seguidas
+        # para uma palavra ser escrita ao vivo.
+        return base if duracao <= base else min(1.25 * duracao, max(base, 2.0))
 
     # ------------------------------------------------------------------
     # API publica (chamada pela thread principal)
@@ -209,35 +225,24 @@ class LiveTranscriber(QtCore.QThread):
         if compute == "auto":
             compute = "float16" if device == "cuda" else "int8"
 
-        nome = self.cfg.get("model", "small")
-
-        # Primeiro uso numa maquina nova: 1,6 GB para baixar. Sem mostrar isso o
-        # app parece travado - foi o que aconteceu com o primeiro usuario que
-        # instalou o pacote.
-        try:
-            if not modelo_util.ja_baixado(nome):
-                self.baixando.emit(True)
-                caminho = modelo_util.garantir(
-                    nome, lambda _f, _t, texto: self.status.emit(texto)
-                )
-                self.baixando.emit(False)
-            else:
-                caminho = modelo_util.garantir(nome)
-        except Exception as exc:  # noqa: BLE001
-            self.baixando.emit(False)
-            self.failed.emit(modelo_util.explicar_falha(exc))
-            return False
-
+        escolhido = self.cfg.get("model", "auto")
         tentativas = [(device, compute)]
         if device == "cuda":
             tentativas.append(("cpu", "int8"))  # fallback se a GPU nao servir
 
         ultimo_erro = None
         for dev, ct in tentativas:
+            # "auto" acompanha o dispositivo: se a GPU falhar, a CPU recebe o
+            # modelo leve, nao o grande (12-14 s por previa na CPU).
+            nome = modelo_util.resolver_nome(escolhido, dev)
+            caminho = self._baixar(nome)
+            if caminho is None:
+                return False
             try:
                 self.status.emit("Carregando o modelo na " + ("GPU" if dev == "cuda" else "CPU") + "...")
                 self._model = WhisperModel(caminho, device=dev, compute_type=ct)
                 self.backend = nome + " / " + dev + " / " + ct
+                self._na_cpu = dev == "cpu"
                 self._aquecer()
                 self.ready.emit(self.backend)
                 return True
@@ -247,6 +252,25 @@ class LiveTranscriber(QtCore.QThread):
                     self.status.emit("GPU indisponivel, caindo para CPU...")
         self.failed.emit("Nao consegui carregar o modelo: " + str(ultimo_erro))
         return False
+
+    def _baixar(self, nome: str) -> str | None:
+        """Caminho local do modelo, baixando se preciso (None = falhou e avisou)."""
+        # Primeiro uso numa maquina nova: centenas de MB a 1,6 GB para baixar.
+        # Sem mostrar isso o app parece travado - foi o que aconteceu com o
+        # primeiro usuario que instalou o pacote.
+        try:
+            if not modelo_util.ja_baixado(nome):
+                self.baixando.emit(True)
+                caminho = modelo_util.garantir(
+                    nome, lambda _f, _t, texto: self.status.emit(texto)
+                )
+                self.baixando.emit(False)
+                return caminho
+            return modelo_util.garantir(nome)
+        except Exception as exc:  # noqa: BLE001
+            self.baixando.emit(False)
+            self.failed.emit(modelo_util.explicar_falha(exc))
+            return None
 
     def _aquecer(self) -> None:
         """A primeira inferencia e sempre lenta; faz ela agora e nao no primeiro uso."""
@@ -277,6 +301,7 @@ class LiveTranscriber(QtCore.QThread):
         # proprio resultado anterior e o que faz ele travar repetindo a ultima
         # palavra ate o fim do trecho.
         prompt = (self.cfg.get("initial_prompt") or "").strip()
+        leve = self._na_cpu and not final
         try:
             segments, _info = self._model.transcribe(
                 audio,
@@ -284,8 +309,16 @@ class LiveTranscriber(QtCore.QThread):
                 beam_size=5 if final else 1,
                 # Lista de temperaturas, nao 0.0 fixo: e o que permite ao
                 # faster-whisper detectar saida degenerada pelo
-                # compression_ratio_threshold e redecodificar.
-                temperature=[0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
+                # compression_ratio_threshold e redecodificar. Excecao: a
+                # PREVIA na CPU. Medido: a primeira previa de uma fala (0,7 s
+                # de audio) levava 3-8 s refazendo a decodificacao ate 6 vezes
+                # sobre texto alucinado, e a escrita ao vivo nunca comecava. A
+                # versao final do trecho segue com a lista completa; na GPU,
+                # nada muda.
+                temperature=[0.0] if leve else [0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
+                # teto de tokens da previa na CPU: ~12 por segundo de audio e
+                # folga - fala real fica bem abaixo; alucinacao para cedo
+                max_new_tokens=(16 + int(12 * audio.size / SAMPLE_RATE)) if leve else None,
                 compression_ratio_threshold=2.4,
                 log_prob_threshold=-1.0,
                 no_speech_threshold=0.6,
@@ -451,9 +484,11 @@ class LiveTranscriber(QtCore.QThread):
         )
         if fechou:
             self._fechar_trecho()
-        elif time.monotonic() - self._last_partial >= self.cfg.get("partial_interval", 0.9):
+        elif time.monotonic() - self._last_partial >= self._intervalo:
+            inicio = time.monotonic()
             self._partial = self._transcrever(self._buf, final=False)
             self._last_partial = time.monotonic()
+            self._intervalo = self._proximo_intervalo(self._last_partial - inicio)
             self._emitir_estavel(self._partial)
             self.text.emit(self._full_text(), False)
 
