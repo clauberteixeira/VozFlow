@@ -40,3 +40,7 @@ desktop.ini
 *.swp
 .idea/
 .vscode/
+
+# Kit de auditoria (Engineering Harness): relatorios e evidencias locais,
+# com caminhos da maquina - nao versionar
+Engineering-Harness-Revisao/
