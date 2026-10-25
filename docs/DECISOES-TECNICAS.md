@@ -183,11 +183,29 @@ São barradas em **quatro camadas**:
   cordas vocais (autocorrelação entre 80 e 400 Hz, `audio.tem_timbre_de_voz`).
   Medido nos blocos que o VAD aceitou: fala real mediana 0,72–0,74 (80% acima
   de 0,5); chiado, estalos e respirações mediana 0,10 e nenhum acima de 0,5.
-  Trecho com menos de 0,25 s de voz assim nem vai para o modelo (a prévia ao
-  vivo exige só 0,1 s — exigir os 0,25 s nela atrasava a 1ª palavra em 0,4 s);
-  trecho com menos de 1 s que sai como uma frase pronta conhecida
-  (`texto.FRASES_INVENTADAS`) é descartado. O `no_speech_prob` do Whisper não
-  serviria: veio 0,0 em todas as invenções medidas.
+  A conta é em janelas de 20 ms, e o que decide é a **proporção** de timbre
+  dentro do que o detector aceitou: fala real mediana 0,72–0,75 (um "obrigado"
+  isolado, 0,72; um "sim", 0,50), chiado/estalo/respiração 0,00, ruído grave
+  0,09–0,26. Regras: o trecho só vai para o modelo com ≥ 0,15 s de timbre
+  (0,05 s na prévia) **ou** ≥ 0,8 s aceitos pelo detector — voz sussurrada ou
+  rouca quase não tem timbre e sumiria sem aviso; texto feito só de frases
+  prontas (`texto.FRASES_INVENTADAS`, "E E Tchau." inclusive) com proporção
+  abaixo de 0,35 é descartado; e a prévia só escreve no campo depois que o
+  trecho se confirma como fala (senão o texto final o descartaria com palavras
+  já digitadas). Uma primeira versão usava um mínimo **absoluto** de 1 s de
+  voz e descartava todo "Obrigado." dito sozinho no fim de uma mensagem — a
+  revisão independente pegou. O `no_speech_prob` do Whisper não serviria:
+  veio 0,0 em todas as invenções medidas.
+
+### O microfone é julgado bloco a bloco
+
+O `_pump` recebe o que acumulou desde a última volta: depois de uma prévia
+lenta (CPU), 1,5–3 s de uma vez. Julgado inteiro, esse pedaço "não era voz" se
+a fala fosse curta — um "sim" no meio de silêncio sumia — e o silêncio era
+contado de mais ou de menos por sorte: a mesma leitura fechava o trecho numa
+pausa curta em metade das rodadas e não fechava na outra metade. Agora cada
+bloco de 100 ms passa pelo portão, pelo VAD e pela contagem de silêncio; se o
+silêncio fecha o trecho no meio de um pedaço, o resto já começa o próximo.
 - **`vozflow/texto.py`** — última linha de defesa antes de entregar: colapsa
   n-gramas repetidos (mantendo repetição natural como "não, não") e remove
   trechos que são eco literal do `initial_prompt`.

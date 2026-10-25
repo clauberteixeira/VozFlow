@@ -324,11 +324,28 @@ def tem_timbre_de_voz(bloco: np.ndarray, samplerate: int = SAMPLE_RATE) -> bool:
     return False
 
 
+def _fracao_com_timbre(bloco: np.ndarray, samplerate: int) -> float:
+    """Fracao das janelas de 40 ms (passo 20 ms) do bloco com timbre de voz."""
+    janela, passo = int(samplerate * 0.04), int(samplerate * 0.02)
+    lag_min, lag_max = int(samplerate / 400), int(samplerate / 80)
+    ok = total = 0
+    for ini in range(0, bloco.size - janela + 1, passo):
+        total += 1
+        x = bloco[ini:ini + janela] - float(np.mean(bloco[ini:ini + janela]))
+        energia = float(np.dot(x, x))
+        if energia < 1e-9:
+            continue
+        ac = np.correlate(x, x, "full")[janela - 1:]
+        if float(np.max(ac[lag_min:lag_max])) / energia >= LIMIAR_TIMBRE:
+            ok += 1
+    return ok / total if total else 0.0
+
+
 def segundos_com_timbre(chunk: np.ndarray, samplerate: int = SAMPLE_RATE) -> float:
-    """Quanto do trecho (em blocos de 100 ms) tem timbre de voz."""
-    passo = BLOCK
-    return sum(passo / samplerate for i in range(0, chunk.size - passo + 1, passo)
-               if tem_timbre_de_voz(chunk[i:i + passo], samplerate))
+    """Segundos do trecho com timbre de voz, em janelas de 20 ms: um "sim"
+    curto conta o que tem, em vez de precisar encher blocos de 100 ms."""
+    return sum(_fracao_com_timbre(chunk[i:i + BLOCK], samplerate) * BLOCK / samplerate
+               for i in range(0, chunk.size - BLOCK + 1, BLOCK))
 
 
 def nome_amigavel(nome: str) -> str:

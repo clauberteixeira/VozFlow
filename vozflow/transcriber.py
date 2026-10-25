@@ -20,12 +20,16 @@ from PySide6 import QtCore
 
 from . import modelo as modelo_util
 from . import texto as texto_util
-from .audio import SAMPLE_RATE, Recorder, SpeechDetector, rms_level, segundos_com_timbre
+from .audio import BLOCK, SAMPLE_RATE, Recorder, SpeechDetector, rms_level, segundos_com_timbre
 
-# Trecho com menos voz que isto (um estalo, um clique: 0,1 s medido) nem vai
-# para o Whisper - ele inventaria "Obrigado." em cima. Um "sim" curto passa.
-VOZ_MINIMA_S = 0.25
-VOZ_MINIMA_PREVIA_S = 0.1
+# Um trecho so e fala de verdade com timbre de voz (vibracao das cordas
+# vocais) suficiente: estalo, chiado e respiracao nao tem nenhum, e e em cima
+# deles que o Whisper inventa "Obrigado.". Um "sim" curto mede ~0,2 s.
+VOZ_MINIMA_S = 0.15
+VOZ_MINIMA_PREVIA_S = 0.05
+# ...ou bastante som aceito pelo detector, mesmo sem timbre: voz sussurrada
+# ou muito rouca tem pouca vibracao, e sem isto sumiria sem aviso.
+ACEITO_SEM_TIMBRE_S = 0.8
 
 
 _cuda_preparado = False
@@ -234,7 +238,8 @@ class LiveTranscriber(QtCore.QThread):
         self._partial = ""
         self._silence = 0.0
         self._had_speech = False
-        self._voz_trecho = 0.0              # segundos de voz de perto no trecho aberto
+        self._voz_trecho = 0.0              # segundos com timbre de voz no trecho aberto
+        self._aceito_trecho = 0.0           # segundos aceitos pelo VAD e pelo portao
         self._last_partial = 0.0
         self._emitido: list[str] = []      # palavras ja escritas na janela
         self._palavras_ant: list[str] = []  # previa anterior do trecho aberto
@@ -329,16 +334,20 @@ class LiveTranscriber(QtCore.QThread):
         except Exception:
             pass
 
-    def _transcrever(self, audio: np.ndarray, final: bool, voz: float | None = None) -> str:
-        """`voz`: segundos que o detector marcou como voz de perto neste
-        trecho. Quase nada (um estalo, um clique) nem vai para o modelo; pouco
-        e o texto sair como frase pronta ("Obrigado.") e invencao."""
+    def _trecho_e_fala(self, voz: float, aceito: float, final: bool = True) -> bool:
+        minimo = VOZ_MINIMA_S if final else VOZ_MINIMA_PREVIA_S
+        return voz >= minimo or aceito >= ACEITO_SEM_TIMBRE_S
+
+    def _transcrever(self, audio: np.ndarray, final: bool, voz: float | None = None,
+                     aceito: float = 0.0) -> str:
+        """`voz`/`aceito`: segundos do trecho com timbre de voz / aceitos pelo
+        detector e pelo portao. Trecho que nao e fala nem vai para o modelo;
+        frase pronta ("Obrigado.") saindo de trecho quase sem timbre e
+        invencao. A previa exige menos voz que o texto final: exigir o
+        minimo inteiro nela atrasava a 1a palavra em 0,4 s."""
         if self._model is None or audio.size < int(SAMPLE_RATE * 0.25):
             return ""
-        # A previa so precisa de um bloco com timbre de voz (ruido conta zero):
-        # exigir os 0,25 s nela atrasava a 1a palavra em 0,4 s. O texto
-        # final, que e o que fica, exige o minimo inteiro.
-        if voz is not None and voz < (VOZ_MINIMA_S if final else VOZ_MINIMA_PREVIA_S):
+        if voz is not None and not self._trecho_e_fala(voz, aceito, final):
             return ""
 
         # Portao de energia: o Whisper inventa frases inteiras quando recebe
@@ -392,7 +401,7 @@ class LiveTranscriber(QtCore.QThread):
             )
             bruto = " ".join(s.text.strip() for s in segments).strip()
             limpo = texto_util.limpar(bruto, prompt)
-            if voz is not None and texto_util.e_invencao(limpo, voz):
+            if voz is not None and texto_util.e_invencao(limpo, voz, aceito):
                 return ""
             return limpo
         except Exception as exc:  # noqa: BLE001
@@ -475,64 +484,97 @@ class LiveTranscriber(QtCore.QThread):
     def _pump(self) -> None:
         chunk = self._rec.drain()
         if chunk.size:
-            self._buf = np.concatenate([self._buf, chunk]) if self._buf.size else chunk
             self.level.emit(rms_level(chunk))
-            nivel = float(np.sqrt(np.mean(np.square(chunk))))
-
-            # Portao de proximidade: quem fala no microfone chega muito mais
-            # forte que uma conversa do outro lado da sala. Com histerese, para
-            # uma silaba fraca no meio da palavra nao picotar a frase.
-            limiar = max(float(self.cfg.get("nivel_fala", 0.0)), 4.0 * self._piso)
-            if self._perto:
-                limiar *= 0.45
-            perto = nivel >= limiar
-
-            eh_voz = self._vad(chunk)
-            dur = chunk.size / SAMPLE_RATE
-
-            # Piso de ruido como rastreador de minimo: desce rapido, sobe
-            # devagar. Uma media simples subia ate o nivel do som sustentado e
-            # o absorvia como se fosse ruido - inclusive a voz fraca que o
-            # portao acabara de barrar, que era justamente o que eu precisava
-            # detectar para avisar o usuario.
-            if nivel < self._piso:
-                self._piso = 0.7 * self._piso + 0.3 * nivel
-            else:
-                self._piso = 0.995 * self._piso + 0.005 * nivel
-
-            if eh_voz and perto:
-                self._perto = True
-                self._had_speech = True
-                # so conta o que tem timbre de voz: respiracao e chiado tambem
-                # passam pelo VAD e, somados, deixavam passar "Obrigado."
-                self._voz_trecho += segundos_com_timbre(chunk)
-                self._silence = 0.0
-                self._rejeitado = 0.0
-            else:
-                self._perto = False
-                self._silence += dur
-
-                # Chega som claramente acima do ruido, mas fraco demais para o
-                # portao. Ficar mudo sem explicar e o pior desfecho possivel.
-                # Nao exijo o VAD aqui: com voz muito fraca ele proprio ja nao
-                # a reconhece como fala.
-                # Acumula com decaimento em vez de zerar: fala tem pausa entre
-                # silabas o tempo todo, e zerar a cada queda fazia o contador
-                # nunca alcancar o limite - o aviso jamais disparava.
-                if nivel > max(3.0 * self._piso, 0.0008):
-                    self._rejeitado += dur
-                else:
-                    self._rejeitado = max(0.0, self._rejeitado - dur * 0.25)
-
-                if self._rejeitado > 1.5 and not self._had_speech and not self._avisou:
-                    self._avisou = True
-                    self.dica.emit(
-                        "Nao estou captando sua voz - o som esta fraco demais. "
-                        "Fale mais perto do microfone ou calibre em "
-                        "Configuracoes > Microfone."
-                    )
+            # Bloco a bloco (100 ms), nao o pedaco inteiro: depois de uma previa
+            # lenta chegam 1,5-3 s de uma vez, e julgar tudo junto fazia uma
+            # palavra curta no meio de silencio sumir (o pedaco inteiro "nao era
+            # voz") e o silencio ser contado de mais ou de menos por sorte.
+            for i in range(0, chunk.size, BLOCK):
+                self._bloco(chunk[i:i + BLOCK])
+                if self._had_speech and self._deve_fechar():
+                    self._fechar_trecho()      # o resto do pedaco ja e o proximo trecho
         else:
             time.sleep(0.02)
+
+        if not self._had_speech:
+            return
+
+        if self._deve_fechar():
+            self._fechar_trecho()
+        elif time.monotonic() - self._last_partial >= self._intervalo:
+            inicio = time.monotonic()
+            self._partial = self._transcrever(self._buf, final=False, voz=self._voz_trecho,
+                                              aceito=self._aceito_trecho)
+            self._last_partial = time.monotonic()
+            self._intervalo = self._proximo_intervalo(self._last_partial - inicio)
+            # So escreve no campo depois que o trecho se confirmou como fala: a
+            # previa roda antes (para a janelinha), mas o texto final ainda pode
+            # descartar o trecho - e o que ja foi digitado nao volta.
+            if self._partial and self._trecho_e_fala(self._voz_trecho, self._aceito_trecho):
+                self._emitir_estavel(self._partial)
+            self.text.emit(self._full_text(), False)
+
+    def _deve_fechar(self) -> bool:
+        return (self._silence * 1000 >= self.cfg.get("silence_ms", 700)
+                or self._buf.size / SAMPLE_RATE >= self.cfg.get("max_segment_s", 20.0))
+
+    def _bloco(self, bloco: np.ndarray) -> None:
+        """Um bloco de 100 ms: portao, VAD, piso de ruido, silencio e timbre."""
+        self._buf = np.concatenate([self._buf, bloco]) if self._buf.size else bloco
+        nivel = float(np.sqrt(np.mean(np.square(bloco))))
+        dur = bloco.size / SAMPLE_RATE
+
+        # Portao de proximidade: quem fala no microfone chega muito mais
+        # forte que uma conversa do outro lado da sala. Com histerese, para
+        # uma silaba fraca no meio da palavra nao picotar a frase.
+        limiar = max(float(self.cfg.get("nivel_fala", 0.0)), 4.0 * self._piso)
+        if self._perto:
+            limiar *= 0.45
+        perto = nivel >= limiar
+        eh_voz = self._vad(bloco)
+
+        # Piso de ruido como rastreador de minimo: desce rapido, sobe
+        # devagar. Uma media simples subia ate o nivel do som sustentado e
+        # o absorvia como se fosse ruido - inclusive a voz fraca que o
+        # portao acabara de barrar, que era justamente o que eu precisava
+        # detectar para avisar o usuario.
+        if nivel < self._piso:
+            self._piso = 0.7 * self._piso + 0.3 * nivel
+        else:
+            self._piso = 0.995 * self._piso + 0.005 * nivel
+
+        if eh_voz and perto:
+            self._perto = True
+            self._had_speech = True
+            self._aceito_trecho += dur
+            # o timbre separa voz de respiracao, estalo e chiado, que tambem
+            # passam pelo VAD - e e em cima deles que o Whisper inventa
+            self._voz_trecho += segundos_com_timbre(bloco)
+            self._silence = 0.0
+            self._rejeitado = 0.0
+        else:
+            self._perto = False
+            self._silence += dur
+
+            # Chega som claramente acima do ruido, mas fraco demais para o
+            # portao. Ficar mudo sem explicar e o pior desfecho possivel.
+            # Nao exijo o VAD aqui: com voz muito fraca ele proprio ja nao
+            # a reconhece como fala.
+            # Acumula com decaimento em vez de zerar: fala tem pausa entre
+            # silabas o tempo todo, e zerar a cada queda fazia o contador
+            # nunca alcancar o limite - o aviso jamais disparava.
+            if nivel > max(3.0 * self._piso, 0.0008):
+                self._rejeitado += dur
+            else:
+                self._rejeitado = max(0.0, self._rejeitado - dur * 0.25)
+
+            if self._rejeitado > 1.5 and not self._had_speech and not self._avisou:
+                self._avisou = True
+                self.dica.emit(
+                    "Nao estou captando sua voz - o som esta fraco demais. "
+                    "Fale mais perto do microfone ou calibre em "
+                    "Configuracoes > Microfone."
+                )
 
         if not self._had_speech:
             # so silencio ate agora: nao deixa o buffer crescer, mas guarda um
@@ -540,22 +582,6 @@ class LiveTranscriber(QtCore.QThread):
             respiro = int(SAMPLE_RATE * 0.4)
             if self._buf.size > respiro * 2:
                 self._buf = self._buf[-respiro:]
-            return
-
-        dur = self._buf.size / SAMPLE_RATE
-        fechou = (
-            self._silence * 1000 >= self.cfg.get("silence_ms", 700)
-            or dur >= self.cfg.get("max_segment_s", 20.0)
-        )
-        if fechou:
-            self._fechar_trecho()
-        elif time.monotonic() - self._last_partial >= self._intervalo:
-            inicio = time.monotonic()
-            self._partial = self._transcrever(self._buf, final=False, voz=self._voz_trecho)
-            self._last_partial = time.monotonic()
-            self._intervalo = self._proximo_intervalo(self._last_partial - inicio)
-            self._emitir_estavel(self._partial)
-            self.text.emit(self._full_text(), False)
 
     def _emitir_estavel(self, parcial: str) -> None:
         """Solta as palavras que pararam de mudar entre duas parciais.
@@ -612,10 +638,11 @@ class LiveTranscriber(QtCore.QThread):
     def _fechar_trecho(self) -> None:
         audio, self._buf = self._buf, np.empty(0, dtype=np.float32)
         voz, self._voz_trecho = self._voz_trecho, 0.0
+        aceito, self._aceito_trecho = self._aceito_trecho, 0.0
         self._silence = 0.0
         self._had_speech = False
         self._partial = ""
-        texto = self._transcrever(audio, final=True, voz=voz)
+        texto = self._transcrever(audio, final=True, voz=voz, aceito=aceito)
         if texto:
             self._committed.append(texto)
         self._emitir_resto(texto or "")
@@ -637,12 +664,14 @@ class LiveTranscriber(QtCore.QThread):
             if self._vad(resto):  # fala nos ultimos milissegundos antes do atalho
                 self._had_speech = True
                 self._voz_trecho += segundos_com_timbre(resto)
+                self._aceito_trecho += resto.size / SAMPLE_RATE
             self._buf = np.concatenate([self._buf, resto]) if self._buf.size else resto
 
         # Sem o guarda de fala, o silencio residual seria transcrito e o Whisper
         # alucinaria repetindo a ultima frase do initial_prompt.
         if self._had_speech and self._buf.size >= int(SAMPLE_RATE * 0.25):
-            texto = self._transcrever(self._buf, final=True, voz=self._voz_trecho)
+            texto = self._transcrever(self._buf, final=True, voz=self._voz_trecho,
+                                      aceito=self._aceito_trecho)
             if texto:
                 self._committed.append(texto)
             self._emitir_resto(texto or "")

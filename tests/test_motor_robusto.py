@@ -85,7 +85,7 @@ def test_aviso_de_voz_fraca_aponta_onde_a_calibracao_esta():
 
     from vozflow import transcriber
 
-    fonte = inspect.getsource(transcriber.LiveTranscriber._pump)
+    fonte = inspect.getsource(transcriber.LiveTranscriber._bloco)
     assert "na bandeja" not in fonte
     assert "Configuracoes > Microfone" in fonte
 

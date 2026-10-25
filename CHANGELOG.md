@@ -15,12 +15,16 @@ Versionamento [semântico](https://semver.org/lang/pt-BR/).
   real: com 12 s só de ruído, a versão anterior digitava "E E Tchau. E Tchau.
   E Obrigado."; agora, nada (6 de 6 rodadas). Com a sua fala, as 70 palavras
   continuam saindo, com a mesma rapidez.
-- Como: o app passa a contar quanto de cada trecho tem **timbre de voz** (a
+- Como: o app passa a medir quanto de cada trecho tem **timbre de voz** (a
   vibração regular das cordas vocais — respiração e chiado não têm, mesmo
-  quando o detector de voz os aceita). Trecho quase sem voz nem vai para o
-  modelo; trecho com pouca voz que sai como uma frase pronta dessas é
-  descartado. Vale também para o texto ao vivo, que antes chegava a escrever
-  a invenção. Um "obrigado" dito de verdade numa frase continua sendo escrito.
+  quando o detector de voz os aceita). Trecho sem voz nem vai para o modelo;
+  frase pronta saindo de trecho quase sem timbre é descartada; e o texto ao
+  vivo só é escrito depois que o trecho se confirma como fala. Um "Obrigado."
+  dito de verdade — mesmo sozinho, no fim de uma mensagem — continua sendo
+  escrito, e voz sussurrada também.
+- **Palavra curta não some mais com o computador lento.** O microfone passa a
+  ser analisado em blocos de 100 ms: antes, depois de uma prévia demorada, um
+  "sim" no meio de silêncio era julgado junto com o silêncio e sumia.
 
 ---
 

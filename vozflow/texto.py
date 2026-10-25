@@ -84,26 +84,46 @@ FRASES_INVENTADAS = {
     "obrigado por assistir", "obrigada por assistir", "obrigado pela atencao",
     "tchau", "tchau tchau", "e ai", "valeu", "ate a proxima", "ate mais", "ate logo",
     "inscreva-se no canal", "se inscreva no canal", "legendas pela comunidade amara.org",
-    "legenda adriana zanotto", "sous-titres realises para la communaute d'amara.org",
-    "thank you", "thanks for watching", "you", "...",
+    "legenda adriana zanotto", "sous-titres realises par la communaute d'amara.org",
+    "thank you", "thanks for watching", "you",
 }
-VOZ_PARA_CONFIAR_S = 1.0   # fala real curta mediu 1,1-1,8 s de voz; invencao, 0-0,5 s
+# Proporcao do trecho com timbre de voz, dentro do que o detector aceitou.
+# Medido: fala real mediana 0,72-0,75 (um "obrigado" isolado, 0,72; um "sim",
+# 0,50); chiado, estalo e respiracao 0,00; ruido grave 0,09-0,26.
+PROPORCAO_DE_VOZ = 0.35
 
 
 def _frase_normalizada(texto: str) -> str:
     return " ".join(_chave(p) for p in texto.split() if _chave(p))
 
 
-def e_invencao(texto: str, voz_s: float) -> bool:
-    """Trecho com pouca voz que saiu como uma das frases tipicas de invencao.
+def _so_frases_prontas(texto: str) -> bool:
+    """O texto inteiro e feito de frases prontas? ("E E Tchau. Obrigado.")"""
+    # ponto so separa frase quando seguido de espaco ou fim: "Amara.org" fica junto
+    for frase in re.split(r"[.!?…]+(?:\s+|$)", texto):
+        chave = _frase_normalizada(frase)
+        # "E E Tchau": o "e" solto se repete na frente - mas "e ai" e uma frase
+        while chave not in FRASES_INVENTADAS and chave.startswith("e "):
+            chave = chave[2:]
+        if chave and chave != "e" and chave not in FRASES_INVENTADAS:
+            return False
+    return True
 
-    Com voz de sobra (um "obrigado" dito de verdade numa frase) passa: o que
-    denuncia a invencao e a frase pronta saindo de um trecho quase sem fala.
+
+def e_invencao(texto: str, voz_s: float, aceito_s: float) -> bool:
+    """Frase pronta saindo de um trecho quase sem timbre de voz.
+
+    `voz_s`: segundos com timbre de voz; `aceito_s`: segundos que o detector e
+    o portao de volume aceitaram. Decide pela PROPORCAO: um "obrigado" dito de
+    verdade e curto, mas e quase todo voz, e passa; o mesmo "Obrigado." em
+    cima de uma respiracao vem de um trecho sem timbre nenhum.
     """
-    if voz_s >= VOZ_PARA_CONFIAR_S:
+    if not texto.strip():
         return False
-    chave = _frase_normalizada(texto)
-    return chave in FRASES_INVENTADAS or (not chave and bool(texto.strip()))
+    proporcao = voz_s / aceito_s if aceito_s > 0 else 0.0
+    if proporcao >= PROPORCAO_DE_VOZ:
+        return False
+    return _so_frases_prontas(texto)
 
 
 def limpar(texto: str, prompt: str = "") -> str:
