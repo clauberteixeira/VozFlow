@@ -80,15 +80,53 @@ Inno Setup 6. As decisões que importam:
 
 ---
 
+## Build reprodutível
+
+O `gerar-exe.bat` não instala "a versão do dia" de nada:
+
+- as dependências que vão dentro do executável saem de
+  **`requirements-lock.txt`**, com versão exata e hash SHA-256 de cada arquivo
+  (`pip install --require-hashes`). Um pacote trocado no PyPI ou uma versão
+  nova com regressão não entram no build sem ninguém ver;
+- o **PyInstaller** fica numa versão fixa no próprio `gerar-exe.bat`.
+
+`requirements.txt` continua com intervalos (`>=`) para quem instala o ambiente
+de desenvolvimento; o lock é o que o build usa.
+
+**Para atualizar uma dependência:** mude o piso em `requirements.txt` se for o
+caso, atualize o `.venv`, rode a suíte (`python -m pytest -q`) e regenere o lock
+a partir dele:
+
+```bat
+.venv\Scripts\pip install pip-tools
+.venv\Scripts\pip-compile --generate-hashes --strip-extras --allow-unsafe -o requirements-lock.txt requirements.txt
+```
+
+O `pip-compile` mantém as versões já presentes no lock; para subir uma, use
+`--upgrade-package <nome>`. Os pacotes de GPU (`requirements-gpu.txt`) ficam
+fora do lock: só os binários do cuBLAS entram no executável, copiados pelo
+`.spec`.
+
+Ainda **não** fixado: a revisão do modelo no Hugging Face. Fixar mudaria o
+snapshot no cache de quem já usa (novo download de 1,6 GB, ou falha sem
+internet) e precisa do hash de cada um dos modelos oferecidos; fica para uma
+versão própria, testada à parte.
+
+---
+
 ## Publicando uma nova versão
 
-1. **Suba a versão** em `vozflow/__init__.py` (`__version__`).
+1. **Suba a versão** em `vozflow/__init__.py` (`__version__`) e em
+   `instalador.iss` (`Versao`).
 2. Atualize o [CHANGELOG](../CHANGELOG.md).
-3. `gerar-instalador.bat`.
-4. Teste o instalador numa máquina limpa, ou pelo menos desinstale e reinstale.
-5. `git tag -a v<versão> -m "VozFlow <versão>"` e `git push --tags`.
-6. Crie uma **Release** no GitHub anexando o
-   `instalador\VozFlow-<versão>-instalador.exe`.
+3. `python -m pytest -q` passa.
+4. `gerar-instalador.bat`.
+5. Teste o instalador numa máquina limpa, ou pelo menos desinstale e reinstale.
+6. `git tag -a v<versão> -m "VozFlow <versão>"` e `git push --tags`.
+7. Crie uma **Release** no GitHub anexando o
+   `instalador\VozFlow-<versão>-instalador.exe` e, no texto da Release, o
+   SHA-256 dele (`certutil -hashfile instalador\VozFlow-<versão>-instalador.exe SHA256`),
+   para quem baixa poder conferir que o arquivo é o mesmo que você gerou.
 
 > **Os binários não vão para o repositório.** O `.gitignore` bloqueia `build/`,
 > `dist/`, `instalador/` e `*.exe`. Um arquivo de 500 MB passa do limite de
@@ -108,8 +146,10 @@ de volta.
 
 ## Checklist antes de soltar uma versão
 
-- [ ] `__version__` subiu em `vozflow/__init__.py`
+- [ ] `__version__` subiu em `vozflow/__init__.py` e `Versao` em `instalador.iss`
 - [ ] CHANGELOG atualizado
+- [ ] `python -m pytest -q` passa
+- [ ] SHA-256 do instalador no texto da Release
 - [ ] `python -m vozflow.diagnostico` passa no ambiente de desenvolvimento
 - [ ] O `.exe` gerado abre e transcreve na GPU
 - [ ] O instalador instala, cria o atalho e aparece em Aplicativos Instalados

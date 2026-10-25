@@ -31,8 +31,20 @@ if defined VOZFLOW_CPU (
 echo ==========================================================
 echo.
 
+rem  Build reprodutivel: as dependencias do executavel saem das versoes e
+rem  hashes de requirements-lock.txt (nao "a versao do dia"), e o PyInstaller
+rem  fica numa versao fixa. Para atualizar, veja docs\EMPACOTAMENTO.md.
+echo -- sincronizando dependencias com requirements-lock.txt --
+"%PY%" -m pip install --require-hashes -r requirements-lock.txt --quiet
+if errorlevel 1 (
+    echo.
+    echo [ERRO] As dependencias nao batem com requirements-lock.txt.
+    pause
+    exit /b 1
+)
+
 echo -- instalando PyInstaller --
-"%PY%" -m pip install --upgrade pyinstaller --quiet
+"%PY%" -m pip install pyinstaller==6.22.2 pyinstaller-hooks-contrib==2026.7 --quiet
 
 echo.
 echo -- empacotando (leva varios minutos) --

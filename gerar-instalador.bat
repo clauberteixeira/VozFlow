@@ -3,7 +3,8 @@ setlocal enabledelayedexpansion
 cd /d "%~dp0"
 title VozFlow - gerando instalador
 
-rem  Gera o VozFlow-1.1.0-instalador.exe na pasta instalador\
+rem  Gera o VozFlow-<versao>-instalador.exe na pasta instalador\
+rem  (a versao vem de instalador.iss)
 rem  Uso:  gerar-instalador.bat        -> com GPU (grande)
 rem        gerar-instalador.bat cpu    -> so CPU (leve)
 
@@ -66,7 +67,7 @@ if errorlevel 1 (
 
 echo.
 echo ==========================================================
-echo    Pronto: instalador\VozFlow-1.1.0-instalador.exe
+echo    Pronto: instalador\VozFlow-(versao)-instalador.exe
 echo.
 echo    Instala sem pedir administrador, em
 echo    %%LOCALAPPDATA%%\Programs\VozFlow
