@@ -24,8 +24,11 @@ alguns segundos na CPU.
 
 ## Opção 1 — instalador (uso normal)
 
-Baixe o `VozFlow-<versão>-instalador.exe` na página de
-[Releases](../../releases) e execute.
+Baixe o `VozFlow-<versão>-instalador.exe` da
+[versão mais recente](https://github.com/clauberteixeira/VozFlow-releases/releases/latest)
+e execute. Só a primeira vez: a partir da 1.2.4 o VozFlow **se atualiza
+sozinho** — baixa a versão nova, confere o hash e instala quando o PC está
+parado, fechando e abrindo de novo.
 
 > **"O Windows protegeu o computador"?** O instalador ainda não tem assinatura
 > digital, e o SmartScreen avisa por isso. Clique em **Mais informações →

@@ -5,6 +5,25 @@ Versionamento [semântico](https://semver.org/lang/pt-BR/).
 
 ---
 
+## [Não lançado]
+
+### Novo — o VozFlow se atualiza sozinho
+
+- **Saiu versão nova, ele atualiza sem você fazer nada.** Ao abrir e a cada 6
+  horas, o VozFlow consulta o GitHub; havendo versão nova, baixa o instalador
+  em segundo plano, confere o SHA-256 publicado junto e instala quando o PC
+  está parado há 1 minuto e você não está ditando — fecha, atualiza em
+  silêncio (sem pedir administrador) e abre de novo. Depois avisa na bandeja:
+  *"VozFlow atualizado para a versão X"*. Ligado por padrão; desliga em
+  Configurações → Geral. No menu da bandeja, **Procurar atualização agora**
+  baixa e instala na hora.
+- As versões saem num repositório público só de instaladores,
+  [VozFlow-releases](https://github.com/clauberteixeira/VozFlow-releases): o
+  do código é privado, e o GitHub não entrega Release de repositório privado
+  sem login.
+
+---
+
 ## [1.2.3] — 2026-10-25
 
 ### Corrigido

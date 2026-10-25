@@ -144,6 +144,20 @@ versão própria, testada à parte.
    `VozFlow-<versão>-instalador.exe.sha256` que o `gerar-instalador.bat` grava
    ao lado dele; cole também o hash no texto da Release. Quem baixa confere
    que o arquivo é exatamente o que você gerou.
+8. Publique a **mesma Release** (mesma tag, mesmos dois anexos) no repositório
+   público [VozFlow-releases](https://github.com/clauberteixeira/VozFlow-releases):
+
+   ```bat
+   gh release create v<versão> instalador\VozFlow-<versão>-instalador.exe ^
+     instalador\VozFlow-<versão>-instalador.exe.sha256 ^
+     --repo clauberteixeira/VozFlow-releases --title "VozFlow <versão>" --notes-file notas.md
+   ```
+
+   É dali que o VozFlow instalado se atualiza (`vozflow/atualizador.py`): ele
+   só aceita um instalador `VozFlow-<versão>-instalador.exe` com o `.sha256`
+   ao lado, baixados da própria Release desse repositório. Release em
+   rascunho ou marcada como pré-lançamento é ignorada — use isso para testar
+   antes de soltar para todo mundo.
 
 ### Assinatura do instalador (o aviso "O Windows protegeu o computador")
 
@@ -194,3 +208,4 @@ de volta.
 - [ ] "Iniciar com o Windows" liga e desliga sem sobrar `VozFlow.vbs` órfão
 - [ ] O desinstalador remove tudo e respeita a escolha sobre os dados
 - [ ] Tag criada e Release publicada com o instalador anexado
+- [ ] A mesma Release publicada no VozFlow-releases (senão ninguém recebe a atualização)

@@ -47,8 +47,34 @@ Name: "{autodesktop}\{#Nome}";           Filename: "{app}\{#Exe}"; Tasks: deskto
 
 [Run]
 Filename: "{app}\{#Exe}"; Description: "Abrir o {#Nome} agora"; Flags: nowait postinstall skipifsilent
+; Atualizacao automatica (/REABRIR=1, sempre silenciosa): abre a versao nova no fim
+Filename: "{app}\{#Exe}"; Flags: nowait; Check: ReabrirDepois
 
 [Code]
+function ReabrirDepois(): Boolean;
+begin
+  Result := ExpandConstant('{param:REABRIR|0}') = '1';
+end;
+
+function InitializeSetup(): Boolean;
+var
+  espera: Integer;
+begin
+  // Atualizacao automatica: o VozFlow dispara este instalador e fecha logo em
+  // seguida. Copiar com ele ainda aberto falharia (arquivos em uso): espera a
+  // trava de instancia unica (main.py) sumir, ate 30 s.
+  if ReabrirDepois() then
+  begin
+    espera := 0;
+    while CheckForMutexes('Global\VozFlow_Singleton') and (espera < 60) do
+    begin
+      Sleep(500);
+      espera := espera + 1;
+    end;
+  end;
+  Result := True;
+end;
+
 function CaminhoStartup(): String;
 begin
   Result := ExpandConstant('{userstartup}\VozFlow.vbs');

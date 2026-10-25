@@ -320,3 +320,27 @@ o `.exe`.
 
 Mas **regere o instalador mesmo assim** — senão uma reinstalação traz os bugs
 de volta.
+
+### A atualização automática baixa de um repositório público só de instaladores
+
+O repositório do código é privado, e a API do GitHub responde 404 para Release
+de repositório privado sem login. Colocar um token dentro do app não serve:
+qualquer um que abrisse o instalador leria o token e o código. Por isso as
+versões são publicadas também em
+[VozFlow-releases](https://github.com/clauberteixeira/VozFlow-releases), que
+só tem os instaladores.
+
+O app baixa o `.sha256` e o instalador da própria Release, recusa anexos de
+outro endereço e apaga o arquivo se o hash não bater. O instalador roda com
+`/VERYSILENT /REABRIR=1`: o `[Code]` do `instalador.iss` espera a trava de
+instância única (`Global\VozFlow_Singleton`) sumir antes de copiar — com o
+app aberto os arquivos estariam em uso — e o `[Run]` com `Check:
+ReabrirDepois` abre a versão nova no fim. Conferido com um instalador
+descartável com o mesmo código: esperou a trava sair (3,0 s), instalou 0,5 s
+depois e reabriu; sem `/REABRIR=1` não reabre. A instalação automática espera
+o PC parado há 1 minuto (`GetLastInputInfo`): a própria digitação do VozFlow
+conta como uso, então ela nunca cai no meio de um texto.
+
+Cada atualização baixa o instalador inteiro (~520 MB, quase tudo CUDA). Como
+o `_internal\` não muda quando só o Python muda (seção acima), dá para um dia
+publicar só o `VozFlow.exe` (~12 MB) nessas versões.

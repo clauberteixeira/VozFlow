@@ -482,6 +482,9 @@ class JanelaConfiguracoes(QtWidgets.QDialog):
         self.chk_startup.setChecked(bool(startup_ativo))
         self.chk_log = QtWidgets.QCheckBox("Guardar historico do que foi ditado")
         self.chk_log.setChecked(bool(self.cfg.get("log_transcricoes", True)))
+        self.chk_atualizar = QtWidgets.QCheckBox(
+            "Atualizar sozinho quando sair versao nova (instala com o PC parado e reabre)")
+        self.chk_atualizar.setChecked(bool(self.cfg.get("atualizar_auto", True)))
 
         nota = QtWidgets.QLabel(
             "So uma lista de termos no vocabulario, nunca uma frase: o Whisper "
@@ -510,6 +513,7 @@ class JanelaConfiguracoes(QtWidgets.QDialog):
         lay.addWidget(self.chk_sons)
         lay.addWidget(self.chk_startup)
         lay.addWidget(self.chk_log)
+        lay.addWidget(self.chk_atualizar)
         lay.addWidget(nota)
         lay.addStretch(1)
         lay.addWidget(btn_json, 0, QtCore.Qt.AlignLeft)
@@ -590,6 +594,7 @@ class JanelaConfiguracoes(QtWidgets.QDialog):
         self.cfg["show_overlay"] = self.chk_overlay.isChecked()
         self.cfg["sounds"] = self.chk_sons.isChecked()
         self.cfg["log_transcricoes"] = self.chk_log.isChecked()
+        self.cfg["atualizar_auto"] = self.chk_atualizar.isChecked()
         if self._limiar_calibrado is not None:
             self.cfg["nivel_fala"] = self._limiar_calibrado
         try:
