@@ -5,7 +5,7 @@
 ; tela de configuracoes do app cria e remove - assim as duas nunca divergem.
 
 #define Nome      "VozFlow"
-#define Versao    "1.2.3"
+#define Versao    "1.2.4"
 #define Publisher "Clauber Regis"
 #define Exe       "VozFlow.exe"
 
