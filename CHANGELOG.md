@@ -5,6 +5,17 @@ Versionamento [semântico](https://semver.org/lang/pt-BR/).
 
 ---
 
+## [Não lançado]
+
+### Mudado
+
+- **Menu da bandeja mais enxuto:** ficaram só Configurações, Abrir histórico,
+  Procurar atualização e Sair. Ditar, encerrar e cancelar são pelos atalhos
+  (ou clique no ícone); o estado — carregando, pronto, erro — aparece passando
+  o mouse sobre o ícone. Saiu também "Copiar última transcrição".
+
+---
+
 ## [1.2.4] — 2026-10-25
 
 ### Novo — o VozFlow se atualiza sozinho

@@ -108,7 +108,7 @@ meio da fala, o texto **espera** e é entregue quando o foco volta — ou, no fi
 o VozFlow traz a janela de volta antes de escrever. Se ela não voltar, nada é
 digitado às cegas: o texto inteiro vai para a área de transferência.
 
-- **Começou pelo ícone ou pelo menu da bandeja?** Nesse instante o foco está na
+- **Começou pelo ícone da bandeja?** Nesse instante o foco está na
   barra de tarefas, que não pode ser o destino. O texto espera até você clicar
   na janela onde ele deve entrar, e a trava fica nela.
 - **Uma ditada por vez.** Logo depois de encerrar (ou cancelar), o VozFlow
@@ -166,15 +166,15 @@ fundo por IA antes do áudio chegar aqui.
 
 ## Menu da bandeja
 
-Só ações, nada de ajuste:
+Só o essencial — ditar é pelo atalho:
 
-- **Começar a ditar / Encerrar e enviar / Cancelar** (com o atalho ao lado)
 - **Configurações...**
-- **Copiar última transcrição**
 - **Abrir histórico de transcrições**
+- **Procurar atualização agora**
 - **Sair**
 
-Clicar no ícone alterna entre ditar e encerrar.
+Clicar no ícone alterna entre ditar e encerrar. Passando o mouse sobre ele
+aparecem a versão, o estado (carregando o modelo, pronto, erro) e os atalhos.
 
 ---
 

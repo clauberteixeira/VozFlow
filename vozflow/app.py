@@ -227,7 +227,6 @@ class VozFlow(QtCore.QObject):
         self.overlay = Overlay(self.cfg)
         self.engine = LiveTranscriber(self.cfg)
         self.pronto = False
-        self._ultimo_texto = ""
         self._dlg_config = None
         self._backend = ""
         self._ultimo_status = ""
@@ -336,24 +335,12 @@ class VozFlow(QtCore.QObject):
 
         self.tray = QtWidgets.QSystemTrayIcon(self.ic_idle)
         self.menu = QtWidgets.QMenu()
-
-        self.act_status = self.menu.addAction("Carregando modelo...")
-        self.act_status.setEnabled(False)
-        self.menu.addSeparator()
-
-        self.act_rec = self.menu.addAction("Iniciar gravacao")
-        self.act_rec.triggered.connect(self._iniciar_padrao)
-        self.act_parar = self.menu.addAction("Parar e enviar")
-        self.act_parar.triggered.connect(self.sig_stop.emit)
-        self.act_cancelar = self.menu.addAction("Cancelar gravacao")
-        self.act_cancelar.triggered.connect(self.sig_cancel.emit)
-        self.menu.addSeparator()
+        # So o que nao tem outro jeito de fazer: ditar e pelo atalho (ou clique
+        # no icone), e o estado aparece passando o mouse no icone.
+        self._status = "Carregando modelo..."
 
         self.act_config = self.menu.addAction("Configuracoes...")
         self.act_config.triggered.connect(self.abrir_configuracoes)
-        self.menu.addSeparator()
-
-        self.menu.addAction("Copiar ultima transcricao").triggered.connect(self._copiar_ultima)
         self.menu.addAction("Abrir historico de transcricoes").triggered.connect(
             lambda: _abrir(config.LOG_PATH)
         )
@@ -424,13 +411,13 @@ class VozFlow(QtCore.QObject):
                 QtWidgets.QSystemTrayIcon.Information, 4000,
             )
 
+    def _mostrar_status(self, texto: str) -> None:
+        """Estado do motor (carregando, pronto, erro) na dica do icone."""
+        self._status = texto
+        self._atualizar_dica_atalhos()
+
     def _atualizar_dica_atalhos(self) -> None:
-        self.act_rec.setText("Comecar a ditar (" + bonito(self.cfg.get("hotkey_start")) + ")")
-        self.act_parar.setText("Encerrar e enviar (" + bonito(self.cfg.get("hotkey_stop")) + ")")
-        self.act_cancelar.setText("Cancelar (" + bonito(self.cfg.get("hotkey_cancel")) + ")")
-        linhas = [APP_NAME + " " + __version__]
-        if self._backend:
-            linhas.append(self._backend)
+        linhas = [APP_NAME + " " + __version__, self._status]
         linhas.append("Ditar: " + bonito(self.cfg.get("hotkey_start"))
                       + (" (envia)" if self.cfg.get("press_enter_after") else ""))
         linhas.append("Encerrar: " + bonito(self.cfg.get("hotkey_stop")))
@@ -676,8 +663,7 @@ class VozFlow(QtCore.QObject):
     def _ao_carregar(self, backend: str) -> None:
         self.pronto = True
         self._backend = backend
-        self.act_status.setText("Pronto - " + backend)
-        self._atualizar_dica_atalhos()
+        self._mostrar_status("Pronto - " + backend)
         self.tray.showMessage(
             APP_NAME,
             "Pronto. " + bonito(self.cfg.get("hotkey_start")) + " grava, "
@@ -689,7 +675,7 @@ class VozFlow(QtCore.QObject):
         if self.pronto:
             return
         self._ultimo_status = msg
-        self.act_status.setText(msg)
+        self._mostrar_status(msg)
         if self._baixando:
             self.overlay.set_texto(msg + "   -  so na primeira vez")
 
@@ -931,7 +917,6 @@ class VozFlow(QtCore.QObject):
             if not descartada and not self._aviso_de_erro:
                 self.overlay.esconder()   # cancelar/falha deixam o aviso na tela
             return
-        self._ultimo_texto = texto
         self._registrar_log(texto)
         self.overlay.mostrar("proc", texto)
         self._entregas_ativas += 1        # volta a zero no _pos_entrega
@@ -1014,7 +999,7 @@ class VozFlow(QtCore.QObject):
                 self.engine.cmd_cancel()
         self._quer_gravar = False
         self._baixando = False
-        self.act_status.setText("Erro: " + msg)
+        self._mostrar_status("Erro: " + msg)
         self.tray.showMessage(APP_NAME, msg,
                               QtWidgets.QSystemTrayIcon.Critical, 15000)
         self.tray.setIcon(self.ic_idle)
@@ -1084,11 +1069,6 @@ class VozFlow(QtCore.QObject):
                 tmp.unlink(missing_ok=True)   # sem sobra com a ultima semana de ditados
             except OSError:
                 pass
-
-    def _copiar_ultima(self) -> None:
-        if self._ultimo_texto:
-            QtWidgets.QApplication.clipboard().setText(self._ultimo_texto)
-            self.overlay.flash("Ultima transcricao copiada", "done", 1400)
 
     # -- saida -----------------------------------------------------------
     def encerrar(self, de_vez: bool = False) -> None:

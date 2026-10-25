@@ -308,3 +308,18 @@ def test_calibracao_no_automatico_usa_o_padrao_atual(monkeypatch):
     monkeypatch.setattr(calibracao.time, "sleep", lambda _s: None)
     calibracao._medir(None, segundos=0)
     assert chamadas == [1]
+
+
+def test_menu_da_bandeja_so_tem_o_essencial(vozflow_app):
+    """Ditar e pelo atalho (ou clique no icone); o estado vai na dica do icone."""
+    app, *_ = vozflow_app()
+    itens = [a.text() for a in app.menu.actions() if not a.isSeparator()]
+    assert itens == ["Configuracoes...", "Abrir historico de transcricoes",
+                     "Procurar atualizacao agora", "Sair"]
+    assert "Pronto" in app.tray.toolTip()
+
+
+def test_erro_aparece_na_dica_do_icone(vozflow_app):
+    app, *_ = vozflow_app()
+    app._mostrar_status("Erro: microfone sumiu")
+    assert "Erro: microfone sumiu" in app.tray.toolTip()
