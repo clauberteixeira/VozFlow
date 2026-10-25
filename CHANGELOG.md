@@ -13,8 +13,11 @@ Versionamento [semântico](https://semver.org/lang/pt-BR/).
   atalhos, ela gravava "F10 + PgDn". Uma tecla cujo "soltar" o Windows perdeu
   ficava presa na tabela da biblioteca de teclado e entrava em toda captura —
   e também podia impedir os atalhos de disparar. Agora a captura só conta o
-  que você aperta depois de clicar no campo, e o VozFlow confere a cada 2 s,
-  no estado real do Windows, se as teclas marcadas como apertadas estão mesmo.
+  que você aperta depois de clicar no campo (Ctrl/Alt/Shift/Win/AltGr só se
+  estiverem segurados; sozinhos não viram atalho), e o VozFlow confere a cada
+  2 s, no estado real do Windows, se uma tecla parada há mais de 2,5 s está
+  mesmo apertada — sem nunca mexer numa tecla que ele próprio está segurando
+  para um atalho reservado.
 
 ---
 

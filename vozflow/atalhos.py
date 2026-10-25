@@ -5,11 +5,12 @@ from __future__ import annotations
 import queue
 import re
 import threading
+import time
 
 import keyboard
 from PySide6 import QtCore, QtWidgets
 
-MODIFICADORES = {"ctrl", "alt", "shift", "windows"}
+MODIFICADORES = {"ctrl", "alt", "shift", "windows", "alt gr"}   # AltGr: ABNT2
 
 # Teclas praticamente nunca usadas no dia a dia: servem bem como atalho sozinho.
 SEGURAS_SOZINHAS = {
@@ -195,35 +196,60 @@ def validar(valores: dict, suprimir: bool = False) -> tuple[str, str]:
     return "", "  ".join(unicos)
 
 
-def soltar_teclas_presas(teclado=None, estado=None) -> list[int]:
+PARADA_MINIMA_S = 2.5   # sem evento nenhum ha mais que isso: candidata a presa
+
+
+def _estado_no_windows(sc: int, user32=None) -> bool | None:
+    """True/False = a tecla esta/nao esta apertada no Windows; None = sem como saber.
+
+    O scancode do evento vem sem o prefixo E0 das teclas estendidas, e o mesmo
+    numero serve a teclas diferentes: 0x5B e "[" ou Win esquerda, 0x22 e "G" ou
+    Play/Pause, 0x1D e Ctrl esquerdo ou direito. Por isso confere todos os
+    codigos virtuais possiveis e so diz "solta" se todos estiverem soltos.
+    """
+    if user32 is None:
+        try:
+            import ctypes
+            user32 = ctypes.windll.user32
+        except (ImportError, AttributeError):   # fora do Windows
+            return None
+    if sc <= 0 or sc > 0xFF:          # so codigo virtual, ou AltGr (541): sem como conferir
+        return None
+    candidatos = {user32.MapVirtualKeyW(cod, modo)
+                  for cod, modo in ((sc, 1), (sc, 3), (0xE000 | sc, 3))} - {0}
+    if not candidatos:
+        return None
+    return any(user32.GetAsyncKeyState(vk) & 0x8000 for vk in candidatos)
+
+
+def soltar_teclas_presas(teclado=None, estado=_estado_no_windows, agora=None) -> list[int]:
     """Tira da tabela do keyboard as teclas que o Windows diz estarem soltas.
 
     A biblioteca keyboard guarda as teclas apertadas numa tabela que so
     atualiza com os eventos que recebe. Se o Windows perde o "soltar" de uma
     tecla, ela fica presa ali - e todo atalho passa a ser comparado com ela
     junto: PgDn sozinha deixa de disparar, e um Ctrl preso trava a digitacao
-    (inserter espera os modificadores soltarem). Aqui cada tecla da tabela e
-    conferida no estado real do Windows (GetAsyncKeyState). Tecla de verdade
-    segurada que saia por engano volta no proximo evento de repeticao.
+    (inserter espera os modificadores soltarem).
+
+    Bem conservadora, porque tirar uma tecla de verdade quebra atalhos do
+    proprio Windows: so mexe em tecla parada ha mais de PARADA_MINIMA_S (tecla
+    segurada de verdade se renova pela repeticao, e o Windows leva um instante
+    para refletir uma tecla recem-apertada), e nunca em modificador que a
+    biblioteca esta segurando de proposito ("Reservar a tecla": ela engole o
+    Ctrl ate saber se vem o atalho, e o Windows nem chega a ve-lo apertado).
     """
     teclado = teclado or keyboard
-    if estado is None:
-        try:
-            import ctypes
-            u32 = ctypes.windll.user32
-        except (ImportError, AttributeError):   # fora do Windows
-            return []
-
-        def estado(sc: int) -> bool | None:
-            vk = u32.MapVirtualKeyW(sc, 1)        # MAPVK_VSC_TO_VK: Ctrl, Shift... genericos
-            return bool(u32.GetAsyncKeyState(vk) & 0x8000) if vk else None
-
+    agora = time.time() if agora is None else agora
     soltas = []
     try:
+        segurando = getattr(teclado._listener, "modifier_states", {})
         with teclado._pressed_events_lock:
-            for sc in list(teclado._pressed_events):
-                # scancode <= 0: tecla so com codigo virtual (multimidia) - sem como conferir
-                if sc > 0 and estado(sc) is False:
+            for sc, evento in list(teclado._pressed_events.items()):
+                if agora - (getattr(evento, "time", None) or agora) < PARADA_MINIMA_S:
+                    continue
+                if segurando.get(sc) in ("pending", "suppressed"):
+                    continue
+                if estado(sc) is False:
                     del teclado._pressed_events[sc]
                     teclado._logically_pressed_keys.pop(sc, None)
                     teclado._listener.active_modifiers.discard(sc)
@@ -241,8 +267,9 @@ def ler_combinacao(proximo_evento) -> str:
     apertado, e uma tecla cujo "soltar" o Windows perdeu fica presa para
     sempre: o usuario apertou so PgDn e a tela gravou "F10 + PgDn".
     Modificador entra so se foi apertado agora e ainda esta segurado; a
-    combinacao fecha na primeira tecla comum. Modificador sozinho (apertou e
-    soltou) vale como esta - a validacao decide se serve.
+    combinacao fecha na primeira tecla comum. Modificador sozinho nao fecha:
+    "Ctrl + Alt" sem tecla nao funciona como atalho. Esc cancela, com ou sem
+    modificador.
     """
     segurados: list[str] = []
     while True:
@@ -256,9 +283,11 @@ def ler_combinacao(proximo_evento) -> str:
                 if nome not in segurados:
                     segurados.append(nome)
             elif nome in segurados:
-                return keyboard.get_hotkey_name(segurados)
+                segurados.remove(nome)
             continue
         if descendo:
+            if nome in ("esc", "escape"):
+                return "esc"
             return keyboard.get_hotkey_name([*segurados, nome])
 
 

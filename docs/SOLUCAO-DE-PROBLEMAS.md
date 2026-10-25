@@ -109,8 +109,12 @@ tabela inteira.
 
 Desde a 1.2.3 a captura só conta o que você aperta depois de clicar no campo, e
 o VozFlow confere a cada 2 s, no estado real do Windows, se as teclas da tabela
-estão mesmo apertadas. Em versões anteriores, **Sair** e abrir de novo limpa a
-tabela.
+paradas há mais de 2,5 s estão mesmo apertadas. A conferência é conservadora: o
+mesmo número de tecla serve a teclas diferentes (0x5B é "[" ou Win), então só
+solta se todas as possibilidades estiverem soltas, e nunca mexe no Ctrl/Alt
+que a biblioteca segura de propósito com "Reservar a tecla" ligado — o Windows
+nem vê essa tecla apertada, e soltá-la transformava Ctrl+C em "c". Em versões
+anteriores, **Sair** e abrir de novo limpa a tabela.
 
 ### O VozFlow liga sozinho quando eu rolo a página
 
