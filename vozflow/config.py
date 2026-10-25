@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 from pathlib import Path
 
@@ -99,7 +100,9 @@ def _tipo_ok(padrao, valor) -> bool:
     if isinstance(padrao, bool):
         return isinstance(valor, bool)
     if isinstance(padrao, (int, float)):
-        return isinstance(valor, (int, float)) and not isinstance(valor, bool)
+        # json.loads aceita Infinity e NaN: int(inf) no overlay derrubava o boot
+        return (isinstance(valor, (int, float)) and not isinstance(valor, bool)
+                and math.isfinite(valor))
     if isinstance(padrao, str):
         return isinstance(valor, str)
     if padrao is None:          # input_device: nome do microfone ou padrao do Windows
@@ -139,9 +142,14 @@ class Config(dict):
     def save(self) -> None:
         # Arquivo temporario + os.replace: uma queda de energia no meio da
         # gravacao deixa o arquivo antigo inteiro, nunca um JSON pela metade.
+        # O fsync garante os dados no disco ANTES da troca de nome: sem ele o
+        # NTFS pode registrar o rename e perder o conteudo numa queda.
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
         tmp = CONFIG_PATH.with_name(CONFIG_PATH.name + ".tmp")
-        tmp.write_text(self._texto(), encoding="utf-8")
+        with open(tmp, "w", encoding="utf-8") as fh:
+            fh.write(self._texto())
+            fh.flush()
+            os.fsync(fh.fileno())
         os.replace(tmp, CONFIG_PATH)
 
 
@@ -157,26 +165,39 @@ def load() -> Config:
     """
     data = dict(DEFAULTS)
     em_disco = None
+    nao_regravar = False
     if CONFIG_PATH.exists():
         try:
             em_disco = CONFIG_PATH.read_text(encoding="utf-8-sig")
-            lido = json.loads(em_disco)
-            if not isinstance(lido, dict):
-                raise ValueError("o arquivo nao e um objeto JSON")
-            data.update(lido)
-        except (ValueError, OSError, UnicodeDecodeError) as exc:
-            # ValueError cobre o JSONDecodeError
-            print(f"[config] config.json invalido ({exc}); usando padroes")
-            em_disco = None
+        except OSError as exc:
+            # Arquivo travado (antivirus no boot, sincronizacao de nuvem): o
+            # conteudo pode estar perfeito. Padroes so nesta sessao - regravar
+            # aqui apagava a config da pessoa calado.
+            print(f"[config] nao consegui ler o config.json ({exc}); padroes nesta sessao")
+            nao_regravar = True
+        else:
             try:
-                backup = CONFIG_PATH.with_suffix(".json.bak")
-                backup.write_bytes(CONFIG_PATH.read_bytes())
-                print(f"[config] copia do arquivo problematico em {backup}")
-            except OSError:
-                pass
+                lido = json.loads(em_disco)
+                if not isinstance(lido, dict):
+                    raise ValueError("o arquivo nao e um objeto JSON")
+                data.update(lido)
+            except ValueError as exc:   # cobre o JSONDecodeError
+                print(f"[config] config.json invalido ({exc}); usando padroes")
+                em_disco = None
+                try:
+                    backup = CONFIG_PATH.with_suffix(".json.bak")
+                    backup.write_bytes(CONFIG_PATH.read_bytes())
+                    print(f"[config] copia do arquivo problematico em {backup}")
+                except OSError:
+                    pass
     _migrar_microfone(data)
     _validar_tipos(data)
     cfg = Config(data)
-    if em_disco != cfg._texto():   # so regrava se faltava chave ou algo mudou
-        cfg.save()
+    # So regrava se faltava chave ou algo mudou. Falha ao gravar nao impede o
+    # app de abrir (sob pythonw nao ha console para mostrar o erro).
+    if not nao_regravar and em_disco != cfg._texto():
+        try:
+            cfg.save()
+        except OSError as exc:
+            print(f"[config] nao consegui gravar o config.json ({exc})")
     return cfg

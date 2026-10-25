@@ -76,16 +76,18 @@ def test_microfone_renomeado_pela_porta_usb(monkeypatch):
     assert audio.resolver_dispositivo("Microfone (3- H510-PRO)") == 1
 
 
-def test_parar_microfone_que_sumiu_nao_derruba_o_motor():
+def test_parar_microfone_que_sumiu_nao_derruba_o_motor(monkeypatch):
     """Fone Bluetooth caiu: o stop() do PortAudio levanta erro."""
+    fechados = []
 
     class StreamQueSumiu:
         def stop(self):
             raise audio.sd.PortAudioError("Unanticipated host error")
 
         def close(self):
-            pass
+            fechados.append(True)
 
+    monkeypatch.setattr(audio, "_abertos", 0)
     rec = audio.Recorder()
     rec._stream = StreamQueSumiu()
     audio._contar(+1)
@@ -93,6 +95,8 @@ def test_parar_microfone_que_sumiu_nao_derruba_o_motor():
     assert rec._stream is None
     assert audio._abertos == 0
     assert "host error" in (rec.last_error or "")
+    # sem close() o PortAudio poderia ser reiniciado com o stream vivo
+    assert fechados == [True]
 
 
 # ----------------------------------------------------------------------

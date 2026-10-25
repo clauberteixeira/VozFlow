@@ -177,7 +177,9 @@ class OverlayFalso:
 
     def preaquecer(self): pass
     def aplicar_config(self): pass
-    def esconder(self): pass
+
+    def esconder(self):
+        self.mensagens.append(("esconder", ""))
     def set_nivel(self, _v): pass
     def set_estado(self, _e): pass
 

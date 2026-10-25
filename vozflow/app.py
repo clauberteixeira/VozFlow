@@ -234,6 +234,9 @@ class VozFlow(QtCore.QObject):
         self._entregando_desde = 0.0
         # Cancelada (ou falhou): o que ainda chegar do motor nao e escrito.
         self._descartando = False
+        # Houve erro nesta ditada: o done("") de confirmacao que vem depois
+        # nao pode esconder o aviso que acabou de aparecer.
+        self._aviso_de_erro = False
         self._guarda = GuardaNumerico()
         self._fila: queue.Queue = queue.Queue()
         self._thread_insercao = threading.Thread(
@@ -507,6 +510,7 @@ class VozFlow(QtCore.QObject):
             self._entregas_ativas = 0
         self._quer_gravar = True
         self._descartando = False
+        self._aviso_de_erro = False
         self._inseriu_algo = False
         self._segurando = False
         self._falha_foco = ""
@@ -845,7 +849,7 @@ class VozFlow(QtCore.QObject):
             # pode escapar depois, nem na proxima ditada.
             descartada = self._descartando
             self._descartar()
-            if not descartada:
+            if not descartada and not self._aviso_de_erro:
                 self.overlay.esconder()   # cancelar/falha deixam o aviso na tela
             return
         self._ultimo_texto = texto
@@ -917,6 +921,7 @@ class VozFlow(QtCore.QObject):
             self.overlay.set_texto(msg)
 
     def _ao_falhar(self, msg: str) -> None:
+        self._aviso_de_erro = True
         if self._quer_gravar:
             # Falhou no meio da ditada. So enquanto a pessoa ainda dita: depois
             # do parar, o motor ja esta encerrando sozinho e o texto final dele
@@ -970,6 +975,13 @@ class VozFlow(QtCore.QObject):
             # ("QThread: Destroyed while thread is still running") e o processo
             # caia na saida. A config ja esta salva; o download retoma depois.
             _dbg("SAIR: motor nao parou em 4 s; encerrando o processo")
+            # Antes de cortar: o worker termina o que esta digitando (um Ctrl+V
+            # cortado no meio podia deixar o Ctrl logico preso) e o Timer do
+            # colar() devolve a area de transferencia de quem usa.
+            self._thread_insercao.join(timeout=1.5)
+            for t in threading.enumerate():
+                if isinstance(t, threading.Timer):
+                    t.join(timeout=1.0)
             os._exit(0)
             return
         self.app.quit()

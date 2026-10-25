@@ -67,7 +67,8 @@ def test_motor_continua_vivo_depois_do_erro(motor, monkeypatch):
     motor.cmd_quit()
     motor.run()
     assert len(chamadas) >= 2
-    assert motor.saidas["done"][-1] == ""    # stop confirmado
+    # um done do erro (ignorado pelo app) + um do stop
+    assert motor.saidas["done"] == ["", ""]
 
 
 def test_microfone_que_some_no_stop_ainda_confirma_o_done(motor):
