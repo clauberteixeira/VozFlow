@@ -65,6 +65,10 @@ DEFAULTS: dict = {
     "travar_janela": True,
     "sounds": True,
     "log_transcricoes": True,
+    # O historico guarda tudo enquanto for pequeno (5 MB sao anos de ditado).
+    # Passou disso, fica so com os ultimos `historico_dias` dias.
+    "historico_max_mb": 5,
+    "historico_dias": 7,
 }
 
 

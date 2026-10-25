@@ -123,6 +123,8 @@ Trocar de modelo dispara um novo download na primeira execução. Todos ficam em
 | `overlay_width` | `760` | Largura da janelinha, em pixels. |
 | `sounds` | `true` | Toques de início, fim e cancelamento. |
 | `log_transcricoes` | `true` | Grava tudo em `%APPDATA%\VozFlow\transcricoes.txt`. |
+| `historico_max_mb` | `5` | Enquanto o histórico tiver menos que isso, **nada é apagado** (5 MB são anos de ditado). Passou, ele fica só com os últimos `historico_dias`. `0` desliga a limpeza. |
+| `historico_dias` | `7` | Quantos dias o histórico mantém quando passa de `historico_max_mb`. |
 
 Posições aceitas em `overlay_posicao`:
 
@@ -190,4 +192,5 @@ deixa você revisar antes.
 | Variável | Para que serve |
 |---|---|
 | `VOZFLOW_CONFIG_DIR` | Muda a pasta de configuração. Existe para os testes: sem ela, cada teste que abre a tela de configurações gravava por cima da configuração real de quem usa o app. |
+| `VOZFLOW_DEBUG` | `1` grava em `%TEMP%\vozflow-debug.txt` o que acontece com a janela alvo e a entrega — só **tamanhos**, nunca o texto ditado nem títulos de janela. `texto` grava também o conteúdo, para comparar com o histórico; apague o arquivo depois. |
 | `HF_HUB_DISABLE_XET` | Definida como `1` pelo próprio VozFlow, antes de qualquer import do `huggingface_hub`. Veja [Decisões técnicas](DECISOES-TECNICAS.md). |

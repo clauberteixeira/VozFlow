@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime as dt
 import os
 import queue
+import re
 import subprocess
 import sys
 import threading
@@ -31,6 +32,24 @@ RAIZ = Path(__file__).resolve().parent.parent
 # alvo num arquivo, para investigar sem console.
 _DEBUG = os.environ.get("VOZFLOW_DEBUG")
 _DEBUG_LOG = Path(os.environ.get("TEMP", ".")) / "vozflow-debug.txt"
+
+
+_CARIMBO = re.compile(r"^\[(\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2})\] ")
+
+
+def _txt(s: str) -> str:
+    """Texto ditado no log de debug: so com VOZFLOW_DEBUG=texto.
+
+    Com VOZFLOW_DEBUG=1 (o diagnostico normal) vai so o tamanho: o arquivo fica
+    esquecido em %TEMP% depois da investigacao, e ditado pode ter senha.
+    """
+    s = s or ""
+    return repr(s) if _DEBUG == "texto" else f"<{len(s)} caracteres>"
+
+
+def _nome(hwnd: int) -> str:
+    """Titulo de janela no log de debug (assunto de e-mail, nome de contato...)."""
+    return repr(janela.nome_curto(hwnd)) if _DEBUG == "texto" else "<titulo oculto>"
 
 
 def _dbg(msg: str) -> None:
@@ -523,7 +542,7 @@ class VozFlow(QtCore.QObject):
         alvo = janela.atual() if self.cfg.get("travar_janela", True) else 0
         self._esperar_alvo = bool(alvo) and not janela.alvo_valido(alvo)
         self._janela_alvo = 0 if self._esperar_alvo else alvo
-        _dbg(f"INICIAR alvo={hex(self._janela_alvo)} '{janela.nome_curto(self._janela_alvo)}' "
+        _dbg(f"INICIAR alvo={hex(self._janela_alvo)} {_nome(self._janela_alvo)} "
              f"travar={self.cfg.get('travar_janela')} esperar_alvo={self._esperar_alvo} "
              f"ao_vivo={self._ao_vivo} enter={self._enter_pedido}")
         if self.cfg.get("sounds"):
@@ -731,7 +750,7 @@ class VozFlow(QtCore.QObject):
                             apertar_enter()
                         # Comparar isto com o texto em transcricoes.txt diz se a
                         # perda foi no envio ou no app de destino.
-                        _dbg(f"ENVIADO {enviado + pendente!r}")
+                        _dbg(f"ENVIADO {_txt(enviado + pendente)}")
                     except Exception as exc:  # noqa: BLE001
                         _dbg(f"FIM falhou: {exc!r}")
                         self._falha_foco = self._falha_foco or str(exc)
@@ -790,7 +809,7 @@ class VozFlow(QtCore.QObject):
             return True
         atual = janela.atual()
         if atual and janela.alvo_valido(atual):
-            _dbg(f"TRAVOU em {hex(atual)} '{janela.nome_curto(atual)}' (ditada pela bandeja)")
+            _dbg(f"TRAVOU em {hex(atual)} {_nome(atual)} (ditada pela bandeja)")
             self._janela_alvo = atual
             self._esperar_alvo = False
             return True
@@ -817,7 +836,7 @@ class VozFlow(QtCore.QObject):
             return True
         if not self._segurando:
             _dbg(f"SEGURANDO: foco esta em {hex(janela.atual())} "
-                 f"'{janela.nome_curto(janela.atual())}', alvo e {hex(alvo)}")
+                 f"{_nome(janela.atual())}, alvo e {hex(alvo)}")
             self._segurando = True
             self.sig_segurando.emit(True)
         return False
@@ -825,7 +844,7 @@ class VozFlow(QtCore.QObject):
     def _ao_segmento(self, trecho: str) -> None:
         """Trecho fechou: escreve ele no campo em foco, ainda durante a fala."""
         trecho = (trecho or "").strip()
-        _dbg(f"SEGMENTO {trecho[:40]!r} ao_vivo={self._ao_vivo}")
+        _dbg(f"SEGMENTO {_txt(trecho)} ao_vivo={self._ao_vivo}")
         # NAO usar _quer_gravar aqui: o parar() o desliga antes de o motor
         # mandar o ultimo trecho, e o fim de toda ditada sumiria.
         if not trecho or not self._ao_vivo or self._descartando:
@@ -839,7 +858,7 @@ class VozFlow(QtCore.QObject):
             # Ninguem pediu: e de uma ditada velha (depois do prazo de entrega).
             # Trata-la como da atual a descartaria, ou entregaria o texto velho
             # na janela e com o Enter da nova.
-            _dbg(f"DONE sem pedido pendente, ignorado: {texto[:40]!r}")
+            _dbg(f"DONE sem pedido pendente, ignorado: {_txt(texto)}")
             return
         self._dones_pendentes -= 1
         self.tray.setIcon(self.ic_idle)
@@ -950,6 +969,39 @@ class VozFlow(QtCore.QObject):
             with config.LOG_PATH.open("a", encoding="utf-8") as fh:
                 fh.write("[" + carimbo + "] " + texto + "\n")
         except OSError:
+            return
+        self._podar_historico()
+
+    def _podar_historico(self) -> None:
+        """Passou de `historico_max_mb`: fica so com os ultimos `historico_dias`.
+
+        Sem limite, o arquivo crescia para sempre com tudo que foi ditado. A
+        regra e "guardar tudo enquanto for pequeno": 5 MB sao anos de uso, e
+        so ai entra a limpeza para a ultima semana.
+        """
+        try:
+            limite = float(self.cfg.get("historico_max_mb", 5)) * 1024 * 1024
+            if limite <= 0 or config.LOG_PATH.stat().st_size <= limite:
+                return
+            corte = dt.datetime.now() - dt.timedelta(
+                days=max(1, int(self.cfg.get("historico_dias", 7))))
+            manter, guardar = [], True
+            with config.LOG_PATH.open(encoding="utf-8", errors="replace") as fh:
+                for linha in fh:
+                    m = _CARIMBO.match(linha)
+                    if m:
+                        try:
+                            guardar = dt.datetime.strptime(
+                                m.group(1), "%d/%m/%Y %H:%M:%S") >= corte
+                        except ValueError:
+                            guardar = True
+                    # linha sem carimbo e continuacao da anterior: vai junto
+                    if guardar:
+                        manter.append(linha)
+            tmp = config.LOG_PATH.with_name(config.LOG_PATH.name + ".tmp")
+            tmp.write_text("".join(manter), encoding="utf-8")
+            os.replace(tmp, config.LOG_PATH)
+        except (OSError, ValueError, TypeError):
             pass
 
     def _copiar_ultima(self) -> None:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import threading
 import time
+from urllib.parse import urlsplit
 
 import keyboard
 import pyperclip
@@ -99,6 +100,22 @@ def digitar(texto: str, enter: bool = False) -> bool:
         time.sleep(0.1)
         keyboard.send("enter")
     return True
+
+
+def url_sem_criptografia(url: str) -> bool:
+    """True para http:// fora desta maquina: o ditado iria em texto claro pela rede.
+
+    So vira aviso na tela de configuracoes, nunca bloqueio - um n8n ou servidor
+    na rede de casa pode nao ter HTTPS. localhost/127.x/::1 nao saem do PC.
+    """
+    try:
+        partes = urlsplit((url or "").strip())
+        host = (partes.hostname or "").lower()
+    except ValueError:
+        return False
+    if partes.scheme.lower() != "http":
+        return False
+    return not (host == "localhost" or host == "::1" or host.startswith("127."))
 
 
 def enviar_webhook(url: str, campo: str, texto: str, timeout: float = 15.0) -> tuple[bool, str]:

@@ -242,4 +242,8 @@ Com `log_transcricoes` ligado (o padrão), tudo que você dita é gravado em
 `%APPDATA%\VozFlow\transcricoes.txt`. O menu da bandeja tem **Abrir histórico
 de transcrições**, que abre o arquivo direto.
 
+O histórico guarda tudo enquanto for pequeno. Se passar de 5 MB (anos de
+uso), ele passa a manter só a última semana. Os dois números estão em
+`historico_max_mb` e `historico_dias`, na [Configuração](CONFIGURACAO.md).
+
 Para desligar: Configurações → Geral → desmarque o histórico.

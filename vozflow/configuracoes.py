@@ -13,6 +13,7 @@ from PySide6 import QtCore, QtWidgets
 from . import atalhos as atl
 from . import config
 from .audio import Recorder, entradas_para_menu, rms_level
+from .inserter import url_sem_criptografia
 from .overlay import POSICOES
 
 MODELOS = ["tiny", "base", "small", "medium", "large-v3", "large-v3-turbo"]
@@ -368,6 +369,11 @@ class JanelaConfiguracoes(QtWidgets.QDialog):
         form.addRow("O texto vai para", self.cbo_acao)
         self.lbl_webhook = QtWidgets.QLabel("URL do webhook")
         form.addRow(self.lbl_webhook, self.ed_webhook)
+        self.lbl_webhook_aviso = QtWidgets.QLabel("")
+        self.lbl_webhook_aviso.setWordWrap(True)
+        self.lbl_webhook_aviso.setStyleSheet("color:#c87f0a;")
+        form.addRow("", self.lbl_webhook_aviso)
+        self.ed_webhook.textChanged.connect(self._avisar_webhook)
 
         lay = QtWidgets.QVBoxLayout(w)
         lay.setContentsMargins(16, 16, 16, 16)
@@ -384,7 +390,16 @@ class JanelaConfiguracoes(QtWidgets.QDialog):
         webhook = self.cbo_acao.currentData() == "webhook"
         self.ed_webhook.setVisible(webhook)
         self.lbl_webhook.setVisible(webhook)
+        self.lbl_webhook_aviso.setVisible(webhook)
         self.chk_aovivo.setEnabled(self.cbo_acao.currentData() in ("paste", "type"))
+        self._avisar_webhook()
+
+    def _avisar_webhook(self) -> None:
+        """So avisa: um servidor na rede de casa pode nao ter HTTPS."""
+        inseguro = url_sem_criptografia(self.ed_webhook.text())
+        self.lbl_webhook_aviso.setText(
+            "Endereco http:// sem criptografia: tudo que voce ditar vai pela rede "
+            "em texto aberto. Prefira https://." if inseguro else "")
 
     # ==================================================================
     # Aba: geral
