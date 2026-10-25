@@ -5,6 +5,18 @@ Versionamento [semântico](https://semver.org/lang/pt-BR/).
 
 ---
 
+## [Não lançado]
+
+### Corrigido
+
+- **Configurações abrindo atrás das outras janelas** (pelo menu da bandeja só
+  aparecia no segundo clique): agora vem para a frente na primeira.
+- **Microfone automático:** a opção "Automático — o microfone padrão do
+  Windows" passa a seguir o Windows **a cada ditada**. Antes o VozFlow só
+  descobria o padrão ao abrir, então um fone ligado depois era ignorado.
+
+---
+
 ## [1.2.0] — 2026-10-24
 
 Correções vindas de uma auditoria do código. Nenhuma muda o visual.

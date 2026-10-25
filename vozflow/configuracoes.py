@@ -11,7 +11,7 @@ import numpy as np
 from PySide6 import QtCore, QtWidgets
 
 from . import atalhos as atl
-from . import config
+from . import config, janela
 from .audio import Recorder, entradas_para_menu, rms_level
 from .inserter import url_sem_criptografia
 from .overlay import POSICOES
@@ -152,7 +152,9 @@ class JanelaConfiguracoes(QtWidgets.QDialog):
     def _aba_microfone(self) -> QtWidgets.QWidget:
         w = QtWidgets.QWidget()
         self.cbo_mic = QtWidgets.QComboBox()
-        self.cbo_mic.addItem("Padrao do Windows", None)
+        # None = automatico: a cada ditada o VozFlow usa o microfone padrao do
+        # Windows naquele momento (fone ligado depois tambem vale)
+        self.cbo_mic.addItem("Automatico - o microfone padrao do Windows (recomendado)", None)
         try:
             # guarda o NOME do aparelho, nao o indice: o indice do PortAudio
             # muda de posicao quando outro dispositivo entra ou sai
@@ -249,6 +251,14 @@ class JanelaConfiguracoes(QtWidgets.QDialog):
     def showEvent(self, evt):  # noqa: N802
         super().showEvent(evt)
         self._iniciar_medidor()
+        # depois do show, quando a janela ja tem HWND e o Qt terminou de exibi-la
+        QtCore.QTimer.singleShot(0, self._vir_para_frente)
+
+    def _vir_para_frente(self) -> None:
+        """Abrir pelo menu da bandeja deixava a janela atras das outras."""
+        self.raise_()
+        self.activateWindow()
+        janela.trazer_para_frente(int(self.winId()))
 
     def closeEvent(self, evt):  # noqa: N802
         self._parar_medidor()

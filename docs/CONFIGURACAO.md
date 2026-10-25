@@ -79,7 +79,7 @@ Trocar de modelo dispara um novo download na primeira execução. Todos ficam em
 
 | Chave | Padrão | Para que serve |
 |---|---|---|
-| `input_device` | `null` | **Nome** do microfone (`null` = padrão do Windows). |
+| `input_device` | `null` | **Nome** do microfone. `null` = **automático**: a cada ditada o VozFlow usa o microfone padrão do Windows naquele momento — ligou um fone e o Windows passou a usá-lo, o VozFlow também passa, sem trocar nada aqui. Recomendado. |
 | `partial_interval` | `0.45` | Intervalo **mínimo** entre as retranscrições do trecho aberto. Menor = texto aparece mais rápido e a GPU trabalha mais. Se a máquina leva mais que isso para retranscrever (CPU, GPU ocupada), o intervalo cresce sozinho para 1,25× o tempo da última prévia, até 2 s. |
 | `silence_ms` | `700` | Silêncio que fecha um trecho. Aumente se você fala com pausas longas. |
 | `nivel_minimo` | `0.004` | RMS abaixo disso conta como mudo e o áudio nem vai ao modelo. Aumente se ainda aparecer texto fantasma; diminua se você fala muito baixo. |

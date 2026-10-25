@@ -140,6 +140,11 @@ class Recorder:
             while not self._queue.empty():          # descarta sobras
                 self._queue.get_nowait()
             self.aviso = None
+            if not self.device:
+                # Automatico: o PortAudio so le o microfone padrao do Windows ao
+                # iniciar. Sem recarregar, um fone ligado depois - que o Windows
+                # passa a usar como padrao - nunca chegava aqui (medido: 0,04 s).
+                atualizar_lista_dispositivos()
             indice = resolver_dispositivo(self.device)
             if indice is None and self.device and atualizar_lista_dispositivos():
                 indice = resolver_dispositivo(self.device)  # ligaram o fone agora
