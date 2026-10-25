@@ -184,7 +184,6 @@ class LiveTranscriber(QtCore.QThread):
         self._had_speech = False
         self._last_partial = 0.0
         self._emitido: list[str] = []      # palavras ja escritas na janela
-        self._partial_ant: list[str] = []  # parcial anterior, para comparar
         self._chaves_ant: list[str] = []   # a mesma, sem pontuacao
         self._piso = 0.0005                # piso de ruido, recalibrado ao vivo
         self._perto = False                # esta chegando voz de perto agora?
@@ -472,11 +471,10 @@ class LiveTranscriber(QtCore.QThread):
         # custando uma rodada inteira antes de qualquer texto aparecer.
         chaves = [texto_util._chave(p) for p in palavras]
         comum = 0
-        for a, b in zip(chaves, self._chaves_ant):
+        for a, b in zip(chaves, self._chaves_ant, strict=False):
             if a != b:
                 break
             comum += 1
-        self._partial_ant = palavras
         self._chaves_ant = chaves
 
         novas = palavras[len(self._emitido):max(0, comum - 1)]
@@ -490,7 +488,6 @@ class LiveTranscriber(QtCore.QThread):
         if resto:
             self.segmento.emit(" ".join(resto))
         self._emitido = []
-        self._partial_ant = []
         self._chaves_ant = []
 
     def _fechar_trecho(self) -> None:

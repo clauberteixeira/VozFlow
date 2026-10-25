@@ -41,10 +41,6 @@ except AttributeError:  # pragma: no cover - fora do Windows
 SW_RESTORE = 9
 
 
-def disponivel() -> bool:
-    return _u32 is not None
-
-
 def atual() -> int:
     """Janela em primeiro plano agora, ou 0."""
     if _u32 is None:

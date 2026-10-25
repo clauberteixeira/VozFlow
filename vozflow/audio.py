@@ -179,10 +179,6 @@ class Recorder:
                 self._stream = None
                 _contar(-1)
 
-    @property
-    def running(self) -> bool:
-        return self._stream is not None
-
     # -- dados ---------------------------------------------------------
     def _callback(self, indata, frames, time_info, status):  # noqa: ARG002
         if status:

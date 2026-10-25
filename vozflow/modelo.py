@@ -13,7 +13,6 @@ que o gancho de tqdm nao dispara).
 from __future__ import annotations
 
 import threading
-import time
 from pathlib import Path
 
 # Tamanho aproximado de cada modelo em MB, so para mostrar percentual enquanto
