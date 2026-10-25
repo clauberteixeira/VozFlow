@@ -65,9 +65,26 @@ if errorlevel 1 (
     exit /b 1
 )
 
+rem ---------- 3. checksum para quem baixa conferir ----------
+rem  O instalador nao e assinado (ver docs\EMPACOTAMENTO.md). O SHA-256 vai
+rem  num .sha256 ao lado dele e no texto da Release: quem baixa confere que o
+rem  arquivo e exatamente o que saiu daqui.
+set "INST="
+for /f "delims=" %%F in ('dir /b /o-d "instalador\VozFlow-*-instalador.exe"') do (
+    if not defined INST set "INST=instalador\%%F"
+)
+if not defined INST goto :sem_hash
+rem  Fora de bloco ( ) e sem aspas internas: o cmd quebra o parser com \" la dentro.
+rem  Gravado com LF pelo proprio PowerShell: com CRLF o "sha256sum -c" recusa.
+powershell -NoProfile -Command "$f='!INST!'; $l=(Get-FileHash -Algorithm SHA256 -LiteralPath $f).Hash.ToLower() + '  ' + (Split-Path -Leaf $f) + [char]10; [IO.File]::WriteAllText((Join-Path $PWD ($f + '.sha256')), $l)"
+echo -- SHA-256 gravado em !INST!.sha256
+type "!INST!.sha256"
+:sem_hash
+
 echo.
 echo ==========================================================
-echo    Pronto: instalador\VozFlow-(versao)-instalador.exe
+echo    Pronto: !INST!
+echo    Publique tambem o !INST!.sha256 na Release.
 echo.
 echo    Instala sem pedir administrador, em
 echo    %%LOCALAPPDATA%%\Programs\VozFlow

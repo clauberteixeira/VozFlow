@@ -140,9 +140,31 @@ versão própria, testada à parte.
 5. Teste o instalador numa máquina limpa, ou pelo menos desinstale e reinstale.
 6. `git tag -a v<versão> -m "VozFlow <versão>"` e `git push --tags`.
 7. Crie uma **Release** no GitHub anexando o
-   `instalador\VozFlow-<versão>-instalador.exe` e, no texto da Release, o
-   SHA-256 dele (`certutil -hashfile instalador\VozFlow-<versão>-instalador.exe SHA256`),
-   para quem baixa poder conferir que o arquivo é o mesmo que você gerou.
+   `instalador\VozFlow-<versão>-instalador.exe` **e** o
+   `VozFlow-<versão>-instalador.exe.sha256` que o `gerar-instalador.bat` grava
+   ao lado dele; cole também o hash no texto da Release. Quem baixa confere
+   que o arquivo é exatamente o que você gerou.
+
+### Assinatura do instalador (o aviso "O Windows protegeu o computador")
+
+O instalador **não é assinado**. Sem assinatura, o SmartScreen do Windows
+mostra *"O Windows protegeu o computador"* para quem baixa; a pessoa precisa
+clicar em **Mais informações → Executar assim mesmo**. O aviso diminui
+sozinho conforme o arquivo ganha downloads (reputação), mas volta a cada
+versão nova, porque o arquivo muda.
+
+Assinar exige um **certificado de assinatura de código**, emitido por uma
+autoridade certificadora depois de verificar sua identidade. Opções vistas em
+2026-10 (confira antes de decidir — preços e regras mudam):
+
+| Opção | Custo | Observação |
+|---|---|---|
+| **SignPath Foundation** | grátis para open source | O VozFlow se encaixa (licença MIT, código público). Exige build automatizado no CI a partir do repositório, política de assinatura publicada na página do projeto, e o certificado sai em nome da SignPath Foundation, não no seu. Hoje o build é feito à mão (`gerar-exe.bat`), então isso pede montar o build no GitHub Actions primeiro. |
+| Certificado comercial (ex.: Certum, Sectigo) | dezenas a centenas de euros/dólares por ano | Em seu nome. Certum anuncia a partir de ~49 € (versão em nuvem); exige validação de identidade. |
+| Azure Artifact Signing (Microsoft) | ~US$ 10/mês | Hoje só para **pessoas físicas** nos EUA e Canadá — não atende quem está no Brasil. |
+
+Enquanto não houver certificado, o checksum `.sha256` é o que garante a quem
+baixa que o arquivo não foi trocado.
 
 > **Os binários não vão para o repositório.** O `.gitignore` bloqueia `build/`,
 > `dist/`, `instalador/` e `*.exe`. Um arquivo de 500 MB passa do limite de
@@ -165,7 +187,7 @@ de volta.
 - [ ] `__version__` subiu em `vozflow/__init__.py` e `Versao` em `instalador.iss`
 - [ ] CHANGELOG atualizado
 - [ ] `python -m pytest -q` passa
-- [ ] SHA-256 do instalador no texto da Release
+- [ ] `.sha256` anexado e hash no texto da Release
 - [ ] `python -m vozflow.diagnostico` passa no ambiente de desenvolvimento
 - [ ] O `.exe` gerado abre e transcreve na GPU
 - [ ] O instalador instala, cria o atalho e aparece em Aplicativos Instalados
