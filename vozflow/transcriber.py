@@ -336,7 +336,16 @@ class LiveTranscriber(QtCore.QThread):
 
     def _trecho_e_fala(self, voz: float, aceito: float, final: bool = True) -> bool:
         minimo = VOZ_MINIMA_S if final else VOZ_MINIMA_PREVIA_S
-        return voz >= minimo or aceito >= ACEITO_SEM_TIMBRE_S
+        # folga: somar 8 blocos de 0,1 da 0,7999...
+        return voz >= minimo or aceito + 1e-6 >= ACEITO_SEM_TIMBRE_S
+
+    def _pode_escrever_ao_vivo(self) -> bool:
+        """A previa so vai para o campo com o trecho confirmado como fala E com
+        a proporcao de voz de fala: o texto final ainda pode descartar uma
+        frase pronta pela proporcao, e o que ja foi digitado nao volta."""
+        voz, aceito = self._voz_trecho, self._aceito_trecho
+        return (self._trecho_e_fala(voz, aceito)
+                and aceito > 0 and voz / aceito >= texto_util.PROPORCAO_DE_VOZ)
 
     def _transcrever(self, audio: np.ndarray, final: bool, voz: float | None = None,
                      aceito: float = 0.0) -> str:
@@ -510,7 +519,7 @@ class LiveTranscriber(QtCore.QThread):
             # So escreve no campo depois que o trecho se confirmou como fala: a
             # previa roda antes (para a janelinha), mas o texto final ainda pode
             # descartar o trecho - e o que ja foi digitado nao volta.
-            if self._partial and self._trecho_e_fala(self._voz_trecho, self._aceito_trecho):
+            if self._partial and self._pode_escrever_ao_vivo():
                 self._emitir_estavel(self._partial)
             self.text.emit(self._full_text(), False)
 
@@ -660,12 +669,13 @@ class LiveTranscriber(QtCore.QThread):
             return
 
         self.status.emit("Transcrevendo...")
-        if resto.size:
-            if self._vad(resto):  # fala nos ultimos milissegundos antes do atalho
-                self._had_speech = True
-                self._voz_trecho += segundos_com_timbre(resto)
-                self._aceito_trecho += resto.size / SAMPLE_RATE
-            self._buf = np.concatenate([self._buf, resto]) if self._buf.size else resto
+        # O que chegou desde a ultima volta (1,5-3 s depois de uma previa lenta)
+        # passa bloco a bloco, como no _pump: julgado inteiro, um "sim" dito
+        # antes do atalho sumia, e o silencio inflava a conta do que e voz.
+        for i in range(0, resto.size, BLOCK):
+            self._bloco(resto[i:i + BLOCK])
+            if self._had_speech and self._deve_fechar():
+                self._fechar_trecho()
 
         # Sem o guarda de fala, o silencio residual seria transcrito e o Whisper
         # alucinaria repetindo a ultima frase do initial_prompt.

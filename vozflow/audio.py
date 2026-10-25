@@ -317,8 +317,7 @@ def tem_timbre_de_voz(bloco: np.ndarray, samplerate: int = SAMPLE_RATE) -> bool:
         energia = float(np.dot(x, x))
         if energia < 1e-9:
             continue
-        ac = np.correlate(x, x, "full")[janela - 1:]
-        melhor = max(melhor, float(np.max(ac[lag_min:lag_max])) / energia)
+        melhor = max(melhor, _pico_de_periodicidade(x, lag_min, lag_max) / energia)
         if melhor >= LIMIAR_TIMBRE:
             return True
     return False
@@ -335,10 +334,23 @@ def _fracao_com_timbre(bloco: np.ndarray, samplerate: int) -> float:
         energia = float(np.dot(x, x))
         if energia < 1e-9:
             continue
-        ac = np.correlate(x, x, "full")[janela - 1:]
-        if float(np.max(ac[lag_min:lag_max])) / energia >= LIMIAR_TIMBRE:
+        if _pico_de_periodicidade(x, lag_min, lag_max) / energia >= LIMIAR_TIMBRE:
             ok += 1
     return ok / total if total else 0.0
+
+
+def _pico_de_periodicidade(x: np.ndarray, lag_min: int, lag_max: int) -> float:
+    """Maior pico LOCAL da autocorrelacao entre os lags (nao o maximo da faixa).
+
+    Voz tem um pico no periodo da vibracao (lag 133 a 120 Hz). Ronco grave
+    (vento, batida, < 100 Hz) so tem autocorrelacao descendo desde o lag 0: o
+    maximo da faixa caia na borda e ele passava por voz em 9 de 10 blocos.
+    """
+    ac = np.correlate(x, x, "full")[x.size - 1:]
+    seg = ac[lag_min - 1:lag_max + 1]
+    meio = seg[1:-1]
+    picos = meio[(meio >= seg[:-2]) & (meio >= seg[2:])]
+    return float(picos.max()) if picos.size else 0.0
 
 
 def segundos_com_timbre(chunk: np.ndarray, samplerate: int = SAMPLE_RATE) -> float:

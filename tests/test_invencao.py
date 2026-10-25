@@ -194,3 +194,64 @@ def test_contagem_zera_entre_trechos(ditar):
                             SN.silencio(1.2)])
     digitado, _ = ditar(sinal, "Obrigado.")
     assert " ".join(digitado) == "Obrigado."           # so o do primeiro trecho, que e voz
+
+
+# ----------------------------------------------------------------------
+# segunda revisao: encerrar, ronco grave, texto orfao, arredondamento
+# ----------------------------------------------------------------------
+@pytest.fixture
+def ditar_e_enviar(qapp, monkeypatch):
+    """Fala e aperta "enviar" enquanto uma previa lenta roda: o que ainda nao
+    foi lido do microfone chega todo de uma vez no _encerrar."""
+    def rodar(sinal, fala, lat_previa):
+        relogio = RelogioSimulado()
+        monkeypatch.setattr(T, "time", relogio)
+        m = T.LiveTranscriber(config.Config(dict(config.DEFAULTS)))
+        m._model = ModeloFalso(fala, relogio, lat_previa)
+        digitado, finais = [], []
+        m.segmento.connect(digitado.append)
+        m.done.connect(finais.append)
+        m._reset_buffers()
+        m._rec = MicFalso(sinal, relogio)
+        m._recording = True
+        m._last_partial = relogio.t
+        fim_da_fala = relogio.t + 0.6
+        while relogio.t < fim_da_fala:
+            relogio.t += 0.02
+            m._pump()
+        relogio.t = m._rec.t0 + sinal.size / 16000      # o resto chega de uma vez
+        m._encerrar(True)
+        return digitado, finais[-1]
+    return rodar
+
+
+@pytest.mark.parametrize(("palavra", "fala", "lat"), [
+    (SN.palavra_sim, "Sim.", 1.5),
+    (SN.palavra_obrigado, "Obrigado.", 2.0),
+    (SN.palavra_obrigado, "Obrigado.", 3.0),
+])
+def test_palavra_dita_antes_de_enviar_com_previa_lenta(ditar_e_enviar, palavra, fala, lat):
+    sinal = np.concatenate([SN.silencio(0.4), palavra(), SN.silencio(lat)])
+    _, final = ditar_e_enviar(sinal, fala, lat)
+    assert final == fala
+
+
+def test_ronco_grave_nao_passa_por_voz():
+    """Vento, batida: autocorrelacao so descendo, sem pico no periodo da voz."""
+    ronco = SN.banda(np.random.default_rng(5).standard_normal(16000), hi=100).astype(np.float32)
+    ronco *= 0.05 / ronco.std()
+    assert segundos_com_timbre(ronco) <= 0.25
+    assert segundos_com_timbre(SN.vogal(1.0, f0=350.0)[:16000]) >= 0.8   # voz aguda continua
+
+
+def test_ronco_grave_nao_escreve_frase_ao_vivo(ditar):
+    ronco = SN.banda(np.random.default_rng(6).standard_normal(32000), hi=100).astype(np.float32)
+    ronco *= 0.05 / ronco.std()
+    digitado, final = ditar(_com_pausas(ronco), "E aí, tudo bem?")
+    assert digitado == [] or " ".join(digitado) == final      # nada orfao no campo
+
+
+def test_oito_blocos_aceitos_bastam(qapp):
+    m = T.LiveTranscriber(config.Config(dict(config.DEFAULTS)))
+    aceito = sum([0.1] * 8)                  # 0,7999999...
+    assert m._trecho_e_fala(0.0, aceito)
