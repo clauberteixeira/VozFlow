@@ -166,8 +166,10 @@ Aumente `silence_ms` se você faz pausas longas no meio das frases. O padrão de
 
 ### Aparece texto que eu não falei
 
-É alucinação do Whisper em silêncio ou eco do `initial_prompt`. Três coisas a
-fazer:
+É alucinação do Whisper: em trecho sem fala de verdade (respiração, estalo,
+chiado) ele inventa frases prontas como *"Obrigado."* e *"Tchau."*, ou repete o
+`initial_prompt`. Desde a 1.2.6 o app descarta essas frases quando o trecho
+quase não tem timbre de voz. Se ainda aparecer algo:
 
 1. Aumente `nivel_minimo` um pouco (padrão `0.004`) — áudio abaixo disso nem
    chega ao modelo.

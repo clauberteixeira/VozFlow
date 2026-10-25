@@ -158,14 +158,17 @@ Os números do antes e depois estão em
 
 ## Transcrição
 
-### O Whisper alucina de duas formas clássicas
+### O Whisper alucina de três formas clássicas
 
 1. **Loop de repetição:** o decoder trava e repete a mesma palavra centenas de
    vezes.
 2. **Eco do prompt:** com áudio curto ou baixo, ele transcreve o próprio
    `initial_prompt` como se fosse fala.
+3. **Frase pronta:** num trecho sem fala de verdade ele escreve o que mais viu
+   em legendas de vídeo — *"Obrigado."*, *"Tchau."*, *"E aí"*. Medido no
+   `large-v3-turbo`: chiado, um estalo e uma respiração viraram *"Obrigado."*.
 
-São barradas em **três camadas**:
+São barradas em **quatro camadas**:
 
 - **Portão de energia** — áudio abaixo de `nivel_minimo` (RMS) nem chega ao
   modelo. Sem isso, o silêncio vira frase inventada: uma gravação muda chegou a
@@ -174,6 +177,17 @@ São barradas em **três camadas**:
 - **Fallback de temperatura** — o `temperature` é uma **lista**, não `0.0`
   fixo. É isso que deixa o `compression_ratio_threshold` detectar saída
   degenerada e redecodificar. Com `0.0` fixo esse mecanismo fica **desligado**.
+- **Timbre de voz no trecho** — o WebRTC VAD olha energia e espectro e aceita
+  respiração, estalo e chiado como "voz"; somados, eles passavam pelo portão.
+  Por isso o motor conta, por trecho, só os blocos com a **periodicidade** das
+  cordas vocais (autocorrelação entre 80 e 400 Hz, `audio.tem_timbre_de_voz`).
+  Medido nos blocos que o VAD aceitou: fala real mediana 0,72–0,74 (80% acima
+  de 0,5); chiado, estalos e respirações mediana 0,10 e nenhum acima de 0,5.
+  Trecho com menos de 0,25 s de voz assim nem vai para o modelo (a prévia ao
+  vivo exige só 0,1 s — exigir os 0,25 s nela atrasava a 1ª palavra em 0,4 s);
+  trecho com menos de 1 s que sai como uma frase pronta conhecida
+  (`texto.FRASES_INVENTADAS`) é descartado. O `no_speech_prob` do Whisper não
+  serviria: veio 0,0 em todas as invenções medidas.
 - **`vozflow/texto.py`** — última linha de defesa antes de entregar: colapsa
   n-gramas repetidos (mantendo repetição natural como "não, não") e remove
   trechos que são eco literal do `initial_prompt`.

@@ -1,9 +1,12 @@
-"""Rede de seguranca contra as duas falhas classicas do Whisper.
+"""Rede de seguranca contra as falhas classicas do Whisper.
 
 1. Loop de repeticao: o decoder trava e repete a mesma palavra ou frase
    centenas de vezes ("19, 19, 19, ...").
 2. Eco do prompt: com audio curto ou baixo, ele transcreve o proprio
    `initial_prompt` como se fosse fala.
+3. Frase inventada: num trecho sem fala de verdade (chiado, estalo,
+   respiracao) ele escreve as frases que mais viu em legendas de video -
+   "Obrigado.", "Tchau.", "E ai".
 
 Ambas ja acontecem menos com os parametros de decodificacao certos, mas nao
 somem: aqui e a ultima linha de defesa antes do texto ser colado.
@@ -71,6 +74,36 @@ def remover_eco_do_prompt(texto: str, prompt: str, min_palavras: int = 3) -> str
             continue  # e o prompt vazando, nao fala do usuario
         mantidas.append(frase)
     return " ".join(m for m in mantidas if m).strip()
+
+
+# O que o Whisper escreve sozinho em trecho sem fala (medido no modelo real:
+# chiado, estalo e respiracao viraram "Obrigado." e "E ai"). Comparado sem
+# acento nem pontuacao, e so quando e o trecho INTEIRO.
+FRASES_INVENTADAS = {
+    "obrigado", "obrigada", "muito obrigado", "muito obrigada", "obrigado a todos",
+    "obrigado por assistir", "obrigada por assistir", "obrigado pela atencao",
+    "tchau", "tchau tchau", "e ai", "valeu", "ate a proxima", "ate mais", "ate logo",
+    "inscreva-se no canal", "se inscreva no canal", "legendas pela comunidade amara.org",
+    "legenda adriana zanotto", "sous-titres realises para la communaute d'amara.org",
+    "thank you", "thanks for watching", "you", "...",
+}
+VOZ_PARA_CONFIAR_S = 1.0   # fala real curta mediu 1,1-1,8 s de voz; invencao, 0-0,5 s
+
+
+def _frase_normalizada(texto: str) -> str:
+    return " ".join(_chave(p) for p in texto.split() if _chave(p))
+
+
+def e_invencao(texto: str, voz_s: float) -> bool:
+    """Trecho com pouca voz que saiu como uma das frases tipicas de invencao.
+
+    Com voz de sobra (um "obrigado" dito de verdade numa frase) passa: o que
+    denuncia a invencao e a frase pronta saindo de um trecho quase sem fala.
+    """
+    if voz_s >= VOZ_PARA_CONFIAR_S:
+        return False
+    chave = _frase_normalizada(texto)
+    return chave in FRASES_INVENTADAS or (not chave and bool(texto.strip()))
 
 
 def limpar(texto: str, prompt: str = "") -> str:

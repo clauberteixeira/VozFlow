@@ -5,6 +5,25 @@ Versionamento [semântico](https://semver.org/lang/pt-BR/).
 
 ---
 
+## [Não lançado]
+
+### Corrigido — frases que você não falou
+
+- **Chega de "Obrigado.", "Tchau." e "E aí" aparecendo sozinhos.** O Whisper
+  inventa essas frases (as que mais viu em legendas de vídeo) quando recebe um
+  trecho sem fala de verdade: respiração, estalo, chiado. Medido no modelo
+  real: com 12 s só de ruído, a versão anterior digitava "E E Tchau. E Tchau.
+  E Obrigado."; agora, nada (6 de 6 rodadas). Com a sua fala, as 70 palavras
+  continuam saindo, com a mesma rapidez.
+- Como: o app passa a contar quanto de cada trecho tem **timbre de voz** (a
+  vibração regular das cordas vocais — respiração e chiado não têm, mesmo
+  quando o detector de voz os aceita). Trecho quase sem voz nem vai para o
+  modelo; trecho com pouca voz que sai como uma frase pronta dessas é
+  descartado. Vale também para o texto ao vivo, que antes chegava a escrever
+  a invenção. Um "obrigado" dito de verdade numa frase continua sendo escrito.
+
+---
+
 ## [1.2.5] — 2026-10-25
 
 ### Mudado

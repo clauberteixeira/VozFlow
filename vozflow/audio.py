@@ -297,6 +297,40 @@ def rms_level(chunk: np.ndarray) -> float:
     return min(1.0, rms * 14.0)
 
 
+LIMIAR_TIMBRE = 0.4
+
+
+def tem_timbre_de_voz(bloco: np.ndarray, samplerate: int = SAMPLE_RATE) -> bool:
+    """O bloco tem a vibracao regular das cordas vocais (80-400 Hz)?
+
+    O WebRTC VAD olha energia e espectro, e chama respiracao, estalo e chiado
+    de "voz" - e e em cima desses trechos que o Whisper inventa "Obrigado.".
+    Voz tem periodicidade; ruido nao. Medido nos blocos que o VAD aceitou:
+    fala real do usuario, mediana 0,72-0,74 (80% acima de 0,5); chiado,
+    estalos e respiracoes, mediana 0,10 e nenhum acima de 0,5.
+    """
+    janela, passo = int(samplerate * 0.04), int(samplerate * 0.02)
+    lag_min, lag_max = int(samplerate / 400), int(samplerate / 80)
+    melhor = 0.0
+    for ini in range(0, bloco.size - janela + 1, passo):
+        x = bloco[ini:ini + janela] - float(np.mean(bloco[ini:ini + janela]))
+        energia = float(np.dot(x, x))
+        if energia < 1e-9:
+            continue
+        ac = np.correlate(x, x, "full")[janela - 1:]
+        melhor = max(melhor, float(np.max(ac[lag_min:lag_max])) / energia)
+        if melhor >= LIMIAR_TIMBRE:
+            return True
+    return False
+
+
+def segundos_com_timbre(chunk: np.ndarray, samplerate: int = SAMPLE_RATE) -> float:
+    """Quanto do trecho (em blocos de 100 ms) tem timbre de voz."""
+    passo = BLOCK
+    return sum(passo / samplerate for i in range(0, chunk.size - passo + 1, passo)
+               if tem_timbre_de_voz(chunk[i:i + passo], samplerate))
+
+
 def nome_amigavel(nome: str) -> str:
     """Alguns drivers Bluetooth devolvem o nome cru do recurso, tipo
     "Headset (@System32/drivers/bthhfenum.sys,#2;%1 Hands-Free%0 ;(AirPods))".

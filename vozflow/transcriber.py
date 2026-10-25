@@ -20,7 +20,12 @@ from PySide6 import QtCore
 
 from . import modelo as modelo_util
 from . import texto as texto_util
-from .audio import SAMPLE_RATE, Recorder, SpeechDetector, rms_level
+from .audio import SAMPLE_RATE, Recorder, SpeechDetector, rms_level, segundos_com_timbre
+
+# Trecho com menos voz que isto (um estalo, um clique: 0,1 s medido) nem vai
+# para o Whisper - ele inventaria "Obrigado." em cima. Um "sim" curto passa.
+VOZ_MINIMA_S = 0.25
+VOZ_MINIMA_PREVIA_S = 0.1
 
 
 _cuda_preparado = False
@@ -229,6 +234,7 @@ class LiveTranscriber(QtCore.QThread):
         self._partial = ""
         self._silence = 0.0
         self._had_speech = False
+        self._voz_trecho = 0.0              # segundos de voz de perto no trecho aberto
         self._last_partial = 0.0
         self._emitido: list[str] = []      # palavras ja escritas na janela
         self._palavras_ant: list[str] = []  # previa anterior do trecho aberto
@@ -323,8 +329,16 @@ class LiveTranscriber(QtCore.QThread):
         except Exception:
             pass
 
-    def _transcrever(self, audio: np.ndarray, final: bool) -> str:
+    def _transcrever(self, audio: np.ndarray, final: bool, voz: float | None = None) -> str:
+        """`voz`: segundos que o detector marcou como voz de perto neste
+        trecho. Quase nada (um estalo, um clique) nem vai para o modelo; pouco
+        e o texto sair como frase pronta ("Obrigado.") e invencao."""
         if self._model is None or audio.size < int(SAMPLE_RATE * 0.25):
+            return ""
+        # A previa so precisa de um bloco com timbre de voz (ruido conta zero):
+        # exigir os 0,25 s nela atrasava a 1a palavra em 0,4 s. O texto
+        # final, que e o que fica, exige o minimo inteiro.
+        if voz is not None and voz < (VOZ_MINIMA_S if final else VOZ_MINIMA_PREVIA_S):
             return ""
 
         # Portao de energia: o Whisper inventa frases inteiras quando recebe
@@ -377,7 +391,10 @@ class LiveTranscriber(QtCore.QThread):
                 word_timestamps=False,
             )
             bruto = " ".join(s.text.strip() for s in segments).strip()
-            return texto_util.limpar(bruto, prompt)
+            limpo = texto_util.limpar(bruto, prompt)
+            if voz is not None and texto_util.e_invencao(limpo, voz):
+                return ""
+            return limpo
         except Exception as exc:  # noqa: BLE001
             self.failed.emit("Falha ao transcrever: " + str(exc))
             return ""
@@ -486,6 +503,9 @@ class LiveTranscriber(QtCore.QThread):
             if eh_voz and perto:
                 self._perto = True
                 self._had_speech = True
+                # so conta o que tem timbre de voz: respiracao e chiado tambem
+                # passam pelo VAD e, somados, deixavam passar "Obrigado."
+                self._voz_trecho += segundos_com_timbre(chunk)
                 self._silence = 0.0
                 self._rejeitado = 0.0
             else:
@@ -531,7 +551,7 @@ class LiveTranscriber(QtCore.QThread):
             self._fechar_trecho()
         elif time.monotonic() - self._last_partial >= self._intervalo:
             inicio = time.monotonic()
-            self._partial = self._transcrever(self._buf, final=False)
+            self._partial = self._transcrever(self._buf, final=False, voz=self._voz_trecho)
             self._last_partial = time.monotonic()
             self._intervalo = self._proximo_intervalo(self._last_partial - inicio)
             self._emitir_estavel(self._partial)
@@ -591,10 +611,11 @@ class LiveTranscriber(QtCore.QThread):
 
     def _fechar_trecho(self) -> None:
         audio, self._buf = self._buf, np.empty(0, dtype=np.float32)
+        voz, self._voz_trecho = self._voz_trecho, 0.0
         self._silence = 0.0
         self._had_speech = False
         self._partial = ""
-        texto = self._transcrever(audio, final=True)
+        texto = self._transcrever(audio, final=True, voz=voz)
         if texto:
             self._committed.append(texto)
         self._emitir_resto(texto or "")
@@ -615,12 +636,13 @@ class LiveTranscriber(QtCore.QThread):
         if resto.size:
             if self._vad(resto):  # fala nos ultimos milissegundos antes do atalho
                 self._had_speech = True
+                self._voz_trecho += segundos_com_timbre(resto)
             self._buf = np.concatenate([self._buf, resto]) if self._buf.size else resto
 
         # Sem o guarda de fala, o silencio residual seria transcrito e o Whisper
         # alucinaria repetindo a ultima frase do initial_prompt.
         if self._had_speech and self._buf.size >= int(SAMPLE_RATE * 0.25):
-            texto = self._transcrever(self._buf, final=True)
+            texto = self._transcrever(self._buf, final=True, voz=self._voz_trecho)
             if texto:
                 self._committed.append(texto)
             self._emitir_resto(texto or "")
