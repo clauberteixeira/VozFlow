@@ -165,6 +165,12 @@ Testado com uma conversa de fundo 15× mais fraca sobreposta à voz:
 **Limite honesto:** é corte por nível, não separação de vozes. Alguém falando
 alto e perto do seu microfone passa.
 
+**Novo: reconhecer só a sua voz.** Em Configurações → Microfone → *Só a minha
+voz*, grave 25 s lendo um texto. A partir daí, quem conversa **nas suas pausas**
+é silenciado antes de virar texto — mesmo perto do microfone, desde que mais
+baixo que você. Duas vozes falando **ao mesmo tempo** não são separadas.
+Desligado por padrão; a impressão da voz fica só no seu computador.
+
 ---
 
 ## Configuração
@@ -301,3 +307,10 @@ primeira coisa a rodar quando algo não funciona.
 
 O modelo Whisper é da OpenAI, sob licença MIT. As bibliotecas de terceiros
 mantêm suas próprias licenças.
+
+O recurso *Só a minha voz* usa o [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)
+(Apache-2.0) e o modelo de locutor ResNet34 do
+[WeSpeaker](https://github.com/wenet-e2e/wespeaker), treinado no
+[VoxCeleb](https://www.robots.ox.ac.uk/~vgg/data/voxceleb/) e distribuído sob
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); o arquivo ONNX vem
+de [csukuangfj/speaker-embedding-models](https://huggingface.co/csukuangfj/speaker-embedding-models).

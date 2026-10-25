@@ -66,6 +66,9 @@ DEFAULTS: dict = {
     "travar_janela": True,
     "sounds": True,
     "log_transcricoes": True,
+    # Ignorar quem conversa ao fundo: precisa gravar a voz em Configuracoes >
+    # Microfone. Desligado por padrao (a impressao da voz e dado biometrico).
+    "so_minha_voz": False,
     # O historico guarda tudo enquanto for pequeno (5 MB sao anos de ditado).
     # Passou disso, fica so com os ultimos `historico_dias` dias.
     "historico_max_mb": 5,

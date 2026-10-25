@@ -160,6 +160,28 @@ você tem placa NVIDIA use o **NVIDIA Broadcast** — selecione a entrada
 "Microfone (NVIDIA Broadcast)" em Configurações → Microfone e ele aplica
 remoção de ruído e de vozes de fundo por IA antes do áudio chegar aqui.
 
+### Reconhecer só a sua voz
+
+Para o caso mais comum — **alguém conversando perto enquanto você dita**, e as
+palavras da pessoa entrando no seu texto:
+
+1. Configurações → Microfone → **Só a minha voz** → **Gravar minha voz (25 s)**.
+   Leia em voz alta o texto que aparece, no seu tom normal, sem ninguém falando
+   perto. Na primeira vez ele baixa o modelo de voz (26 MB).
+2. Marque **Ignorar outras vozes** e clique em **Salvar**.
+
+Durante a ditada, o VozFlow confere a voz a cada meio segundo. Trecho de pelo
+menos ~1,5 s com voz de **outra pessoa** e volume **abaixo do seu** é silenciado
+antes do Whisper. Na dúvida ele não corta — apagar palavra sua seria pior.
+
+- **Funciona:** a pessoa falando nas suas pausas, o vídeo ou a TV ao fundo.
+- **Não funciona:** duas vozes **ao mesmo tempo** (o filtro não separa vozes
+  sobrepostas — mas também não estraga a sua) e alguém tão alto quanto você.
+- **Privacidade:** a gravação vira uma *impressão da voz* (256 números) em
+  `%APPDATA%\VozFlow\minha_voz.json`, que nunca sai do computador. O botão
+  **Esquecer minha voz** apaga.
+- Trocou de microfone ou a voz mudou (gripe)? Grave de novo.
+
 ---
 
 ## Menu da bandeja

@@ -19,7 +19,9 @@ import numpy as np
 from PySide6 import QtCore
 
 from . import modelo as modelo_util
+from . import config
 from . import texto as texto_util
+from . import voz as voz_util
 from .audio import SAMPLE_RATE, Recorder, SpeechDetector, rms_level
 
 
@@ -155,6 +157,11 @@ class LiveTranscriber(QtCore.QThread):
         self.backend = "?"
         self._intervalo = float(cfg.get("partial_interval", 0.45))
         self._na_cpu = False   # definido ao carregar o modelo
+        # "So a minha voz": verificador carregado sob demanda e a impressao
+        # relida quando o arquivo muda (gravada pela tela de configuracoes).
+        self._verificador = None
+        self._impressao = None
+        self._impressao_mtime = None
 
     def _proximo_intervalo(self, duracao: float) -> float:
         """Espera ate a proxima previa, conforme a maquina aguenta.
@@ -194,6 +201,9 @@ class LiveTranscriber(QtCore.QThread):
     # ------------------------------------------------------------------
     def _reset_buffers(self) -> None:
         self._buf = np.empty(0, dtype=np.float32)
+        # notas das janelas de 1 s do trecho aberto: cada previa so calcula as
+        # janelas novas (o buffer so cresce enquanto o trecho esta aberto)
+        self._notas_janela: dict[int, tuple[float, float]] = {}
         self._committed: list[str] = []
         self._partial = ""
         self._silence = 0.0
@@ -292,9 +302,58 @@ class LiveTranscriber(QtCore.QThread):
         except Exception:
             pass
 
+    # ------------------------------------------------------------------
+    # So a minha voz
+    # ------------------------------------------------------------------
+    def _carregar_filtro(self) -> None:
+        """Le a impressao da voz (se mudou) e prepara o verificador.
+
+        Nunca baixa nada no meio de uma ditada: o modelo de voz e baixado pela
+        tela de configuracoes, ao gravar a voz. Falhou? Dita sem o filtro.
+        """
+        if not self.cfg.get("so_minha_voz"):
+            return
+        try:
+            mtime = (config.CONFIG_DIR / voz_util.ARQUIVO_IMPRESSAO).stat().st_mtime
+        except OSError:
+            self._impressao = None
+            return
+        if mtime == self._impressao_mtime and self._verificador is not None:
+            return
+        try:
+            imp = voz_util.carregar_impressao()
+            if imp is None or not voz_util.modelo_ja_baixado():
+                self._impressao = None
+                return
+            if self._verificador is None:
+                self._verificador = voz_util.Verificador(voz_util.garantir_modelo())
+            self._verificador.referencia = imp.vetor
+            self._impressao, self._impressao_mtime = imp, mtime
+        except Exception as exc:  # noqa: BLE001
+            self._impressao = None
+            self.dica.emit("Filtro 'so a minha voz' desligado nesta ditada: " + str(exc)[:80])
+
+    def _filtrar(self, audio: np.ndarray) -> np.ndarray:
+        """Silencia as janelas com voz de OUTRA pessoa mais baixa que a sua."""
+        if (not self.cfg.get("so_minha_voz") or self._impressao is None
+                or self._verificador is None):
+            return audio
+        janelas = []
+        for ini in range(0, audio.size - voz_util.JANELA + 1, voz_util.PASSO):
+            if ini not in self._notas_janela:
+                trecho = audio[ini:ini + voz_util.JANELA]
+                rms = float(np.sqrt(np.mean(np.square(trecho))))
+                # silencio nao e de ninguem: nota alta, nunca corta
+                nota = 1.0 if rms < voz_util.RMS_SILENCIO else self._verificador.nota(trecho)
+                self._notas_janela[ini] = (nota, rms)
+            nota, rms = self._notas_janela[ini]
+            janelas.append((ini, nota, rms))
+        return voz_util.aplicar(audio, voz_util.trechos_alheios(janelas, self._impressao.nivel))
+
     def _transcrever(self, audio: np.ndarray, final: bool) -> str:
         if self._model is None or audio.size < int(SAMPLE_RATE * 0.25):
             return ""
+        audio = self._filtrar(audio)   # tira quem conversa ao fundo (se ligado)
 
         # Portao de energia: o Whisper inventa frases inteiras quando recebe
         # audio quase mudo ("Descender.", "Legendas pela comunidade..."), e o
@@ -410,6 +469,7 @@ class LiveTranscriber(QtCore.QThread):
 
     def _iniciar(self) -> None:
         self._reset_buffers()
+        self._carregar_filtro()
         self._vad = SpeechDetector()
         self._rec.device = self.cfg.get("input_device")  # pode ter mudado no menu
         try:

@@ -6,12 +6,14 @@ Tudo que da para ajustar fica aqui, em abas. O menu da bandeja so tem acoes.
 from __future__ import annotations
 
 import threading
+import time
 
 import numpy as np
 from PySide6 import QtCore, QtWidgets
 
 from . import atalhos as atl
 from . import config
+from . import voz
 from .audio import Recorder, entradas_para_menu, rms_level
 from .inserter import url_sem_criptografia
 from .overlay import POSICOES
@@ -202,9 +204,112 @@ class JanelaConfiguracoes(QtWidgets.QDialog):
         lay.addWidget(explica)
         lay.addWidget(self.btn_calibrar, 0, QtCore.Qt.AlignLeft)
         lay.addWidget(self.lbl_calib)
+        lay.addWidget(self._grupo_so_minha_voz())
         lay.addStretch(1)
         self._pintar_corte()
         return w
+
+    # -- so a minha voz --------------------------------------------------
+    def _grupo_so_minha_voz(self) -> QtWidgets.QGroupBox:
+        g = QtWidgets.QGroupBox("So a minha voz")
+        explica = QtWidgets.QLabel(
+            "Grave 25 s da sua voz e o VozFlow passa a ignorar quem conversa ao "
+            "fundo nas suas pausas. Nao separa duas vozes falando ao mesmo tempo. "
+            "A gravacao vira uma 'impressao da voz' que fica so neste computador."
+        )
+        explica.setWordWrap(True)
+        explica.setStyleSheet("color:palette(mid);")
+        self.chk_so_minha_voz = QtWidgets.QCheckBox("Ignorar outras vozes (reconhecer so a minha)")
+        self.chk_so_minha_voz.setChecked(bool(self.cfg.get("so_minha_voz")))
+        self.btn_gravar_voz = QtWidgets.QPushButton("Gravar minha voz (25 s)...")
+        self.btn_gravar_voz.clicked.connect(self._gravar_voz)
+        self.btn_esquecer_voz = QtWidgets.QPushButton("Esquecer minha voz")
+        self.btn_esquecer_voz.clicked.connect(self._esquecer_voz)
+        self.lbl_voz = QtWidgets.QLabel("")
+        self.lbl_voz.setWordWrap(True)
+        self.lbl_voz.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
+        botoes = QtWidgets.QHBoxLayout()
+        botoes.addWidget(self.btn_gravar_voz)
+        botoes.addWidget(self.btn_esquecer_voz)
+        botoes.addStretch(1)
+        lay = QtWidgets.QVBoxLayout(g)
+        lay.addWidget(explica)
+        lay.addWidget(self.chk_so_minha_voz)
+        lay.addLayout(botoes)
+        lay.addWidget(self.lbl_voz)
+        self._atualizar_so_minha_voz()
+        return g
+
+    def _atualizar_so_minha_voz(self) -> None:
+        """So da para ligar o filtro depois de gravar a voz."""
+        tem = voz.carregar_impressao() is not None
+        self.chk_so_minha_voz.setEnabled(tem)
+        self.btn_esquecer_voz.setEnabled(tem)
+        if not tem:
+            self.chk_so_minha_voz.setChecked(False)
+
+    def _esquecer_voz(self) -> None:
+        voz.esquecer()
+        self._atualizar_so_minha_voz()
+        self.lbl_voz.setStyleSheet("")
+        self.lbl_voz.setText("Impressao da voz apagada deste computador.")
+
+    def _gravar_voz(self) -> None:
+        if self._calibrando:
+            return
+        self._calibrando = True          # o medidor ao vivo solta o microfone
+        self._parar_medidor()
+        self.btn_gravar_voz.setEnabled(False)
+        threading.Thread(target=self._rodar_gravacao_voz, daemon=True).start()
+
+    def _rodar_gravacao_voz(self) -> None:
+        dev = self.cbo_mic.currentData()
+        try:
+            if not voz.modelo_ja_baixado():
+                self._voz_msg(f"Baixando o modelo de voz ({voz.MODELO_MB:.0f} MB), uma vez so...", "#c87f0a")
+            caminho = voz.garantir_modelo()
+            for falta in range(3, 0, -1):
+                self._voz_msg("Prepare-se: leia o texto abaixo em voz alta, no seu tom normal. "
+                              f"Comeca em {falta}...\n\n" + voz.TEXTO_CADASTRO, "#c87f0a")
+                time.sleep(1)
+            self._voz_msg("Gravando - LEIA EM VOZ ALTA (25 s):\n\n" + voz.TEXTO_CADASTRO, "#c0392b")
+            audio = voz.gravar(dev, 25.0)
+            nivel = voz.nivel_da_fala(audio)
+            if nivel <= 0:
+                raise RuntimeError("nao ouvi voz nenhuma - confira o microfone")
+            vetor = voz.Verificador(caminho).impressao(audio)
+            voz.salvar_impressao(vetor, nivel)
+        except Exception as exc:  # noqa: BLE001
+            self._voz_fim(False, "Nao consegui gravar a voz: " + str(exc)[:160])
+            return
+        self._voz_fim(True, "Voz gravada. Marque 'Ignorar outras vozes' e clique em Salvar.")
+
+    def _voz_msg(self, texto: str, cor: str) -> None:
+        QtCore.QMetaObject.invokeMethod(
+            self, "_voz_msg_ui", QtCore.Qt.QueuedConnection,
+            QtCore.Q_ARG(str, texto), QtCore.Q_ARG(str, cor))
+
+    @QtCore.Slot(str, str)
+    def _voz_msg_ui(self, texto: str, cor: str) -> None:
+        self.lbl_voz.setStyleSheet("color:" + cor + ";")
+        self.lbl_voz.setText(texto)
+
+    def _voz_fim(self, ok: bool, texto: str) -> None:
+        QtCore.QMetaObject.invokeMethod(
+            self, "_voz_fim_ui", QtCore.Qt.QueuedConnection,
+            QtCore.Q_ARG(bool, ok), QtCore.Q_ARG(str, texto))
+
+    @QtCore.Slot(bool, str)
+    def _voz_fim_ui(self, ok: bool, texto: str) -> None:
+        self._calibrando = False
+        if self._fechado:
+            return
+        self.btn_gravar_voz.setEnabled(True)
+        self._voz_msg_ui(texto, "#2d8a4e" if ok else "#c0392b")
+        self._atualizar_so_minha_voz()
+        if ok:
+            self.chk_so_minha_voz.setChecked(True)
+        self._iniciar_medidor()
 
     def _pintar_corte(self) -> None:
         v = float(self.cfg.get("nivel_fala", 0.0))
@@ -567,6 +672,8 @@ class JanelaConfiguracoes(QtWidgets.QDialog):
         self.cfg["show_overlay"] = self.chk_overlay.isChecked()
         self.cfg["sounds"] = self.chk_sons.isChecked()
         self.cfg["log_transcricoes"] = self.chk_log.isChecked()
+        self.cfg["so_minha_voz"] = (self.chk_so_minha_voz.isEnabled()
+                                    and self.chk_so_minha_voz.isChecked())
         if self._limiar_calibrado is not None:
             self.cfg["nivel_fala"] = self._limiar_calibrado
         try:

@@ -6,6 +6,7 @@ keyboard>=0.13.5
 pyperclip>=1.9
 requests>=2.32.4
 webrtcvad-wheels>=2.0.14
+sherpa-onnx>=2.0.0   # "so a minha voz": verificacao de locutor offline (Apache-2.0)
 # Pisos de seguranca de dependencias indiretas (nao sao usadas direto pelo
 # VozFlow, mas vao dentro do executavel): certifi com a raiz emSign afetada
 # removida (PYSEC-2026-4320), urllib3 sem PYSEC-2026-4175/4176/4177 (entra via

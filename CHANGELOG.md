@@ -5,6 +5,19 @@ Versionamento [semântico](https://semver.org/lang/pt-BR/).
 
 ---
 
+## [Não lançado]
+
+### Novo — reconhecer só a sua voz
+
+- Grave 25 s da sua voz em Configurações → Microfone e o VozFlow passa a
+  ignorar quem conversa ao fundo **nas suas pausas** (vídeo, TV, alguém perto).
+  Medido: a frase da outra pessoa some do texto e as suas ficam intactas.
+  Duas vozes ao mesmo tempo não são separadas — e o filtro não estraga a sua.
+- Desligado por padrão; a impressão da voz fica só no computador e pode ser
+  apagada. Modelo de 26 MB baixado uma vez, conferido por hash.
+
+---
+
 ## [1.2.0] — 2026-10-24
 
 Correções vindas de uma auditoria do código. Nenhuma muda o visual.

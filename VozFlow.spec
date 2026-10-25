@@ -40,7 +40,8 @@ SO_CPU = bool(os.environ.get("VOZFLOW_CPU"))
 RAIZ = Path(os.getcwd())
 
 datas, binaries, hiddenimports = [], [], []
-for pacote in ("faster_whisper", "ctranslate2", "tokenizers", "sounddevice", "av"):
+for pacote in ("faster_whisper", "ctranslate2", "tokenizers", "sounddevice", "av",
+               "sherpa_onnx"):   # traz o proprio onnxruntime.dll (so a minha voz)
     d, b, h = collect_all(pacote)
     datas += d
     binaries += b

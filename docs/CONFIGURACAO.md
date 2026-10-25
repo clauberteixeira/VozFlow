@@ -83,6 +83,7 @@ Trocar de modelo dispara um novo download na primeira execução. Todos ficam em
 | `partial_interval` | `0.45` | Intervalo **mínimo** entre as retranscrições do trecho aberto. Menor = texto aparece mais rápido e a GPU trabalha mais. Se a máquina leva mais que isso para retranscrever (CPU, GPU ocupada), o intervalo cresce sozinho para 1,25× o tempo da última prévia, até 2 s. |
 | `silence_ms` | `700` | Silêncio que fecha um trecho. Aumente se você fala com pausas longas. |
 | `nivel_minimo` | `0.004` | RMS abaixo disso conta como mudo e o áudio nem vai ao modelo. Aumente se ainda aparecer texto fantasma; diminua se você fala muito baixo. |
+| `so_minha_voz` | `false` | Ignora quem conversa ao fundo nas suas pausas. Só liga depois de **Gravar minha voz** (Configurações → Microfone); a impressão fica em `%APPDATA%\VozFlow\minha_voz.json`. |
 | `nivel_fala` | `0.010` | Abaixo deste nível o som é tratado como fundo e não vira texto. Use **Calibrar com a minha voz** em vez de chutar. `0` desliga o corte. |
 | `max_segment_s` | `20.0` | Trecho máximo antes de fechar à força. Existe porque cada retranscrição reprocessa o trecho inteiro — sem teto, ficaria progressivamente mais cara. |
 
