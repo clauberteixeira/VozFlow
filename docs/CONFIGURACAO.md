@@ -80,7 +80,7 @@ Trocar de modelo dispara um novo download na primeira execução. Todos ficam em
 | Chave | Padrão | Para que serve |
 |---|---|---|
 | `input_device` | `null` | **Nome** do microfone (`null` = padrão do Windows). |
-| `partial_interval` | `0.45` | Segundos entre as retranscrições do trecho aberto. Menor = texto aparece mais rápido e a GPU trabalha mais. |
+| `partial_interval` | `0.45` | Intervalo **mínimo** entre as retranscrições do trecho aberto. Menor = texto aparece mais rápido e a GPU trabalha mais. Se a máquina leva mais que isso para retranscrever (CPU, GPU ocupada), o intervalo cresce sozinho para 1,25× o tempo da última prévia, até 2 s. |
 | `silence_ms` | `700` | Silêncio que fecha um trecho. Aumente se você fala com pausas longas. |
 | `nivel_minimo` | `0.004` | RMS abaixo disso conta como mudo e o áudio nem vai ao modelo. Aumente se ainda aparecer texto fantasma; diminua se você fala muito baixo. |
 | `nivel_fala` | `0.010` | Abaixo deste nível o som é tratado como fundo e não vira texto. Use **Calibrar com a minha voz** em vez de chutar. `0` desliga o corte. |

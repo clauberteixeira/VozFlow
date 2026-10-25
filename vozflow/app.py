@@ -256,6 +256,7 @@ class VozFlow(QtCore.QObject):
         # Houve erro nesta ditada: o done("") de confirmacao que vem depois
         # nao pode esconder o aviso que acabou de aparecer.
         self._aviso_de_erro = False
+        self._historico_podado = 0   # tamanho logo apos a ultima poda
         self._guarda = GuardaNumerico()
         self._fila: queue.Queue = queue.Queue()
         self._thread_insercao = threading.Thread(
@@ -970,7 +971,9 @@ class VozFlow(QtCore.QObject):
                 fh.write("[" + carimbo + "] " + texto + "\n")
         except OSError:
             return
-        self._podar_historico()
+        # Depois da entrega, nunca antes: a primeira poda de um arquivo grande
+        # le linha a linha e atrasaria o texto chegando na janela.
+        QtCore.QTimer.singleShot(0, self._podar_historico)
 
     def _podar_historico(self) -> None:
         """Passou de `historico_max_mb`: fica so com os ultimos `historico_dias`.
@@ -979,30 +982,46 @@ class VozFlow(QtCore.QObject):
         regra e "guardar tudo enquanto for pequeno": 5 MB sao anos de uso, e
         so ai entra a limpeza para a ultima semana.
         """
+        tmp = config.LOG_PATH.with_name(config.LOG_PATH.name + ".tmp")
         try:
             limite = float(self.cfg.get("historico_max_mb", 5)) * 1024 * 1024
-            if limite <= 0 or config.LOG_PATH.stat().st_size <= limite:
+            tamanho = config.LOG_PATH.stat().st_size
+            # So a ultima semana ja passa do limite: nao rele e regrava o
+            # arquivo inteiro a cada ditada - espera crescer 10% de novo.
+            if limite <= 0 or tamanho <= max(limite, 1.1 * self._historico_podado):
                 return
-            corte = dt.datetime.now() - dt.timedelta(
-                days=max(1, int(self.cfg.get("historico_dias", 7))))
+            # teto de 100 anos: um "nunca apagar" de 10**12 dias estourava o timedelta
+            dias = min(36500, max(1, int(self.cfg.get("historico_dias", 7))))
+            corte = dt.datetime.now() - dt.timedelta(days=dias)
+            try:
+                texto = config.LOG_PATH.read_bytes().decode("utf-8-sig")
+            except UnicodeDecodeError:
+                return      # salvo a mao em outra codificacao: nao reescreve
             manter, guardar = [], True
-            with config.LOG_PATH.open(encoding="utf-8", errors="replace") as fh:
-                for linha in fh:
-                    m = _CARIMBO.match(linha)
-                    if m:
-                        try:
-                            guardar = dt.datetime.strptime(
-                                m.group(1), "%d/%m/%Y %H:%M:%S") >= corte
-                        except ValueError:
-                            guardar = True
-                    # linha sem carimbo e continuacao da anterior: vai junto
-                    if guardar:
-                        manter.append(linha)
-            tmp = config.LOG_PATH.with_name(config.LOG_PATH.name + ".tmp")
-            tmp.write_text("".join(manter), encoding="utf-8")
+            for linha in texto.splitlines(keepends=True):
+                m = _CARIMBO.match(linha)
+                if m:
+                    try:
+                        guardar = dt.datetime.strptime(
+                            m.group(1), "%d/%m/%Y %H:%M:%S") >= corte
+                    except ValueError:
+                        guardar = True
+                # linha sem carimbo e continuacao da anterior: vai junto
+                if guardar:
+                    manter.append(linha)
+            novo = "".join(manter)
+            # mesmo cuidado do config.json: dados no disco antes da troca
+            with open(tmp, "w", encoding="utf-8", newline="") as fh:
+                fh.write(novo)
+                fh.flush()
+                os.fsync(fh.fileno())
             os.replace(tmp, config.LOG_PATH)
-        except (OSError, ValueError, TypeError):
-            pass
+            self._historico_podado = len(novo.encode("utf-8"))
+        except (OSError, ValueError, TypeError, OverflowError):
+            try:
+                tmp.unlink(missing_ok=True)   # sem sobra com a ultima semana de ditados
+            except OSError:
+                pass
 
     def _copiar_ultima(self) -> None:
         if self._ultimo_texto:

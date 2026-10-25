@@ -235,7 +235,17 @@ class LiveTranscriber(QtCore.QThread):
             # "auto" acompanha o dispositivo: se a GPU falhar, a CPU recebe o
             # modelo leve, nao o grande (12-14 s por previa na CPU).
             nome = modelo_util.resolver_nome(escolhido, dev)
-            caminho = self._baixar(nome)
+            caminho = self._baixar(nome, avisar=False) if escolhido == "auto" else self._baixar(nome)
+            if caminho is None and escolhido == "auto":
+                # Sem internet e o modelo ideal nao esta no disco: melhor um que
+                # ja esteja (o grande na CPU e lento, mas funciona) do que o app
+                # nao abrir - era assim antes do "auto".
+                reserva = next((m for m in (modelo_util.MODELO_GPU, modelo_util.MODELO_CPU)
+                                if m != nome and modelo_util.ja_baixado(m)), None)
+                if reserva:
+                    nome, caminho = reserva, self._baixar(reserva)
+                else:
+                    caminho = self._baixar(nome)   # tenta de novo, agora avisando
             if caminho is None:
                 return False
             try:
@@ -253,8 +263,8 @@ class LiveTranscriber(QtCore.QThread):
         self.failed.emit("Nao consegui carregar o modelo: " + str(ultimo_erro))
         return False
 
-    def _baixar(self, nome: str) -> str | None:
-        """Caminho local do modelo, baixando se preciso (None = falhou e avisou)."""
+    def _baixar(self, nome: str, avisar: bool = True) -> str | None:
+        """Caminho local do modelo, baixando se preciso (None = falhou)."""
         # Primeiro uso numa maquina nova: centenas de MB a 1,6 GB para baixar.
         # Sem mostrar isso o app parece travado - foi o que aconteceu com o
         # primeiro usuario que instalou o pacote.
@@ -269,7 +279,8 @@ class LiveTranscriber(QtCore.QThread):
             return modelo_util.garantir(nome)
         except Exception as exc:  # noqa: BLE001
             self.baixando.emit(False)
-            self.failed.emit(modelo_util.explicar_falha(exc))
+            if avisar:
+                self.failed.emit(modelo_util.explicar_falha(exc))
             return None
 
     def _aquecer(self) -> None:
@@ -317,8 +328,11 @@ class LiveTranscriber(QtCore.QThread):
                 # nada muda.
                 temperature=[0.0] if leve else [0.0, 0.2, 0.4, 0.6, 0.8, 1.0],
                 # teto de tokens da previa na CPU: ~12 por segundo de audio e
-                # folga - fala real fica bem abaixo; alucinacao para cedo
-                max_new_tokens=(16 + int(12 * audio.size / SAMPLE_RATE)) if leve else None,
+                # folga - fala real fica bem abaixo; alucinacao para cedo. E
+                # nunca acima de 220: o faster-whisper levanta ValueError se
+                # prompt + max_new_tokens passar de 448, e o initial_prompt
+                # ocupa ate ~227 tokens (a falha descartaria a ditada inteira).
+                max_new_tokens=min(220, 16 + int(12 * audio.size / SAMPLE_RATE)) if leve else None,
                 compression_ratio_threshold=2.4,
                 log_prob_threshold=-1.0,
                 no_speech_threshold=0.6,

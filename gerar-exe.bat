@@ -66,7 +66,7 @@ echo.
 echo ==========================================================
 echo    Pronto: dist\VozFlow\VozFlow.exe
 echo    O modelo de transcricao e baixado no primeiro uso
-echo    (~1,6 GB, uma vez so, fica em %%USERPROFILE%%\.cache)
+echo    (1,6 GB com GPU, ~145 MB sem; uma vez so, fica em %%USERPROFILE%%\.cache)
 echo.
 echo    Para gerar o INSTALADOR: gerar-instalador.bat
 echo ==========================================================

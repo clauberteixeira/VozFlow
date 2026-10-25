@@ -53,7 +53,7 @@ nenhum. Por isso a thread de inserção avisa a interface por *sinal*
 
 | Item | Escolha |
 |---|---|
-| Modelo | Whisper `large-v3-turbo` (OpenAI) |
+| Modelo | Whisper `large-v3-turbo` com GPU, `base` sem GPU (`model: auto`) |
 | Runtime | `faster-whisper` |
 | Backend | CTranslate2 — reimplementação do Whisper em C++, ~4× mais rápida que o original |
 | Aceleração | CUDA float16 (referência: RTX 4060, 8 GB) |
@@ -223,7 +223,7 @@ Cerca de **3.800 linhas de Python** no app, mais 1.500 de testes.
 
 | Camada | O que usa |
 |---|---|
-| Transcrição | `faster-whisper` (CTranslate2), modelo `large-v3-turbo` |
+| Transcrição | `faster-whisper` (CTranslate2); modelo escolhido pela máquina (`model: auto`) |
 | Aceleração | CUDA float16 — cai para CPU sozinho se faltar |
 | Áudio | `sounddevice` (PortAudio) + `webrtcvad-wheels` |
 | Interface | PySide6 (Qt6) — ícone na bandeja, janela flutuante sem foco |

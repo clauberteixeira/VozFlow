@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 import threading
 import time
 from urllib.parse import urlsplit
@@ -115,7 +116,12 @@ def url_sem_criptografia(url: str) -> bool:
         return False
     if partes.scheme.lower() != "http":
         return False
-    return not (host == "localhost" or host == "::1" or host.startswith("127."))
+    if host == "localhost":
+        return False
+    try:
+        return not ipaddress.ip_address(host).is_loopback
+    except ValueError:      # nome de host ("127.evil.com" tambem cai aqui)
+        return True
 
 
 def enviar_webhook(url: str, campo: str, texto: str, timeout: float = 15.0) -> tuple[bool, str]:

@@ -204,7 +204,7 @@ insistir na CPU:
 
 ### O app parece travado na primeira abertura
 
-Está baixando o modelo (1,6 GB), uma vez só. A janelinha flutuante mostra o
+Está baixando o modelo (1,6 GB com GPU, ~145 MB sem), uma vez só. A janelinha flutuante mostra o
 progresso e um balão da bandeja avisa quando começa. Apertar o atalho durante o
 download mostra o progresso, não uma mensagem genérica.
 
