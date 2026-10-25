@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <img alt="versão" src="https://img.shields.io/badge/vers%C3%A3o-1.2.5-2ea44f">
+  <img alt="versão" src="https://img.shields.io/badge/vers%C3%A3o-1.2.6-2ea44f">
   <img alt="plataforma" src="https://img.shields.io/badge/plataforma-Windows%2010%2F11-0078d4">
   <img alt="python" src="https://img.shields.io/badge/python-3.12-3776ab">
   <img alt="offline" src="https://img.shields.io/badge/100%25-offline-8a2be2">
@@ -189,8 +189,9 @@ já remove vozes de fundo antes do áudio chegar ao VozFlow.
 | **1.2.3** | Tela de atalhos grava só a tecla apertada; tecla "presa" no Windows não trava mais os atalhos |
 | **1.2.4** | Atualização automática com assinatura digital |
 | **1.2.5** | Menu da bandeja só com o essencial; o estado aparece passando o mouse no ícone |
+| **1.2.6** | Fim das frases inventadas ("Obrigado.", "Tchau.") em respiração e ruído; microfone analisado em blocos de 100 ms |
 
-Cada mudança passou por testes automáticos (308 hoje, todos sem microfone,
+Cada mudança passou por testes automáticos (342 hoje, todos sem microfone,
 teclado ou internet reais) e por revisão independente antes de sair.
 O histórico completo está no **[CHANGELOG](CHANGELOG.md)**.
 
@@ -283,7 +284,7 @@ VozFlow.spec                receita do empacotamento, com o motivo de cada corte
 instalador.iss              Inno Setup: instala sem administrador, atualiza em silêncio
 ```
 
-Cerca de 4.800 linhas de Python e 308 testes.
+Cerca de 4.900 linhas de Python e 342 testes.
 
 **Stack:** `faster-whisper` (CTranslate2) · CUDA float16 · `sounddevice`
 (PortAudio) + `webrtcvad` · PySide6 · `keyboard` · PyInstaller + Inno Setup.
