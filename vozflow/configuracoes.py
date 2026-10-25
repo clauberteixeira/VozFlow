@@ -35,6 +35,11 @@ class JanelaConfiguracoes(QtWidgets.QDialog):
         self.setMinimumWidth(600)
         self._medidor: Recorder | None = None
         self._calibrando = False
+        # A calibracao so vale no Salvar: gravar direto na cfg compartilhada
+        # fazia o motor usar o limiar novo mesmo depois de um Cancelar.
+        self._limiar_calibrado: float | None = None
+        # A thread da calibracao (8 s) pode terminar depois do dialogo fechado.
+        self._fechado = False
 
         self.abas = QtWidgets.QTabWidget()
         self.abas.addTab(self._aba_atalhos(), "Atalhos")
@@ -200,6 +205,8 @@ class JanelaConfiguracoes(QtWidgets.QDialog):
 
     def _pintar_corte(self) -> None:
         v = float(self.cfg.get("nivel_fala", 0.0))
+        if self._limiar_calibrado is not None:
+            v = self._limiar_calibrado
         self.lbl_corte.setText(
             f"{v:.5f}" + ("  (desligado - capta qualquer som)" if v <= 0 else "")
         )
@@ -210,7 +217,7 @@ class JanelaConfiguracoes(QtWidgets.QDialog):
         self._iniciar_medidor()
 
     def _iniciar_medidor(self) -> None:
-        if self._calibrando:
+        if self._calibrando or self._fechado:
             return
         try:
             self._medidor = Recorder(device=self.cbo_mic.currentData())
@@ -245,6 +252,7 @@ class JanelaConfiguracoes(QtWidgets.QDialog):
         super().closeEvent(evt)
 
     def done(self, r):  # noqa: D102
+        self._fechado = True
         self._parar_medidor()
         super().done(r)
 
@@ -303,12 +311,17 @@ class JanelaConfiguracoes(QtWidgets.QDialog):
     @QtCore.Slot(float, str)
     def _fim_ui(self, limiar: float, texto: str) -> None:
         self._calibrando = False
+        if self._fechado:
+            # Salvar/Cancelar foi clicado no meio da medicao. Reabrir o medidor
+            # aqui deixava o microfone ligado num dialogo invisivel pelo resto
+            # da sessao (e travava a deteccao de fone novo, ver audio.py).
+            return
         self.btn_calibrar.setEnabled(True)
         ok = limiar >= 0
         self.lbl_calib.setStyleSheet("color:" + ("#2d8a4e" if ok else "#c0392b") + ";")
-        self.lbl_calib.setText(texto)
+        self.lbl_calib.setText(texto + ("\nClique em Salvar para usar este corte." if ok else ""))
         if ok:
-            self.cfg["nivel_fala"] = round(limiar, 6)
+            self._limiar_calibrado = round(limiar, 6)
             self._pintar_corte()
         self._iniciar_medidor()
 
@@ -533,6 +546,8 @@ class JanelaConfiguracoes(QtWidgets.QDialog):
         self.cfg["show_overlay"] = self.chk_overlay.isChecked()
         self.cfg["sounds"] = self.chk_sons.isChecked()
         self.cfg["log_transcricoes"] = self.chk_log.isChecked()
+        if self._limiar_calibrado is not None:
+            self.cfg["nivel_fala"] = self._limiar_calibrado
         self.cfg.save()
 
         self.startup_pedido = self.chk_startup.isChecked()

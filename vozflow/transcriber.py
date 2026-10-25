@@ -317,21 +317,47 @@ class LiveTranscriber(QtCore.QThread):
 
             if cmd == "quit":
                 break
-            if cmd == "start" and not self._recording:
-                self._iniciar()
-            elif cmd in ("stop", "cancel"):
+            try:
+                if cmd == "start" and not self._recording:
+                    self._iniciar()
+                elif cmd in ("stop", "cancel"):
+                    if self._recording:
+                        self._encerrar(entregar=cmd == "stop")
+                    else:
+                        # Nada gravando (o microfone falhou ao abrir, ou o stop
+                        # chegou antes do start atrasado pelo som). Confirma
+                        # mesmo assim: o app espera este done para a proxima.
+                        self.done.emit("")
+
                 if self._recording:
-                    self._encerrar(entregar=cmd == "stop")
-                else:
-                    # Nada gravando (o microfone falhou ao abrir, ou o stop
-                    # chegou antes do start atrasado pelo som). Confirma mesmo
-                    # assim: o app espera este done para aceitar a proxima.
-                    self.done.emit("")
+                    self._pump()
+            except Exception as exc:  # noqa: BLE001
+                self._recuperar(exc)
 
-            if self._recording:
-                self._pump()
+        try:
+            self._rec.stop()
+        except Exception:  # noqa: BLE001 - saindo: aparelho ja sumiu
+            pass
 
-        self._rec.stop()
+    def _recuperar(self, exc: Exception) -> None:
+        """Erro que ninguem previu: fecha o microfone, avisa e segue vivo.
+
+        Antes a excecao matava a QThread com o stream aberto - microfone ligado,
+        fila do callback crescendo sem limite - e o app seguia dizendo "Pronto"
+        sem transcrever mais nada ate reiniciar. (Ex.: o PortAudio levantando no
+        stop quando o fone Bluetooth caiu.)
+        """
+        self._recording = False     # antes do sinal: o app consulta `recording`
+        try:
+            self._rec.stop()
+        except Exception:  # noqa: BLE001
+            pass
+        self._reset_buffers()
+        self.failed.emit("Erro inesperado no motor: " + str(exc))
+        # Confirma um stop/cancel que estivesse em andamento; se ninguem pediu,
+        # o app ignora este done.
+        self.done.emit("")
+        self.status.emit("Pronto")
 
     def _iniciar(self) -> None:
         self._reset_buffers()
@@ -402,8 +428,8 @@ class LiveTranscriber(QtCore.QThread):
                     self._avisou = True
                     self.dica.emit(
                         "Nao estou captando sua voz - o som esta fraco demais. "
-                        "Fale mais perto do microfone ou use "
-                        "'Calibrar microfone' na bandeja."
+                        "Fale mais perto do microfone ou calibre em "
+                        "Configuracoes > Microfone."
                     )
         else:
             time.sleep(0.02)

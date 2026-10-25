@@ -911,15 +911,17 @@ class VozFlow(QtCore.QObject):
             self.overlay.set_texto(msg)
 
     def _ao_falhar(self, msg: str) -> None:
-        if self._quer_gravar and self.engine.recording:
-            # Falhou no meio da gravacao (ex.: GPU sem memoria numa parcial): o
-            # motor seguiria gravando e mandando trechos, com parar e cancelar
-            # ja ignorados aqui. Encerra de verdade e descarta o que vier.
-            # So enquanto a pessoa ainda dita: depois do parar, o motor ja esta
-            # encerrando sozinho e o texto final dele ainda vale.
-            self._pedir_done()
+        if self._quer_gravar:
+            # Falhou no meio da ditada. So enquanto a pessoa ainda dita: depois
+            # do parar, o motor ja esta encerrando sozinho e o texto final dele
+            # ainda vale. O texto pendente sai fora - sem marcador de fim, ele
+            # ficaria no buffer e sairia na proxima ditada, noutra janela.
             self._descartar()
-            self.engine.cmd_cancel()
+            if self.engine.recording:
+                # Ex.: GPU sem memoria numa parcial: o motor seguiria gravando
+                # e mandando trechos, com parar e cancelar ja ignorados aqui.
+                self._pedir_done()
+                self.engine.cmd_cancel()
         self._quer_gravar = False
         self._baixando = False
         self.act_status.setText("Erro: " + msg)
@@ -953,7 +955,15 @@ class VozFlow(QtCore.QObject):
         self._guarda.limpar()
         self._fila.put(None)
         self.engine.cmd_quit()
-        self.engine.wait(4000)
+        parou = self.engine.wait(4000)
         self.overlay.esconder()
         self.tray.hide()
+        if not parou:
+            # O motor nao le comandos enquanto baixa o modelo ou transcreve um
+            # trecho longo. Seguir com app.quit() destruiria a QThread viva
+            # ("QThread: Destroyed while thread is still running") e o processo
+            # caia na saida. A config ja esta salva; o download retoma depois.
+            _dbg("SAIR: motor nao parou em 4 s; encerrando o processo")
+            os._exit(0)
+            return
         self.app.quit()

@@ -15,14 +15,26 @@ _mutex = None
 _instancia = None  # segura a referencia; sem isso o GC derruba o icone da bandeja
 
 
-def _instancia_unica() -> bool:
-    """Impede duas copias do VozFlow disputando os mesmos atalhos globais."""
+def _instancia_unica(nome: str = "Global\\VozFlow_Singleton") -> bool:
+    """Impede duas copias do VozFlow disputando os mesmos atalhos globais.
+
+    O nome continua em Global\\ de proposito: trocar para Local\\ deixaria a
+    versao nova rodando junto com uma 1.1.1 ainda aberta (iniciada com o
+    Windows) durante a atualizacao. Outro usuario do PC nao e bloqueado: ele
+    recebe ERROR_ACCESS_DENIED, nao ERROR_ALREADY_EXISTS.
+    """
     global _mutex
     if os.name != "nt":
         return True
-    kernel32 = ctypes.windll.kernel32
-    _mutex = kernel32.CreateMutexW(None, False, "Global\\VozFlow_Singleton")
-    return kernel32.GetLastError() != 183  # ERROR_ALREADY_EXISTS
+    # use_last_error: o ctypes.windll.kernel32.GetLastError() de antes podia
+    # ler um codigo ja sobrescrito pelo proprio ctypes entre as duas chamadas.
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateMutexW.restype = ctypes.c_void_p
+    handle = kernel32.CreateMutexW(None, False, nome)
+    ja_existe = ctypes.get_last_error() == 183  # ERROR_ALREADY_EXISTS
+    if _mutex is None:
+        _mutex = handle   # o handle vive ate o processo acabar
+    return not ja_existe
 
 
 def main() -> int:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import queue
+import re
 import threading
 
 import numpy as np
@@ -65,6 +66,11 @@ def nome_do_indice(indice: int) -> str | None:
     return None
 
 
+def _sem_numero_de_porta(nome: str) -> str:
+    """'microfone (2- h510-pro)' -> 'microfone (h510-pro)'."""
+    return re.sub(r"\(\d+-\s*", "(", nome)
+
+
 def resolver_dispositivo(valor) -> int | None:
     """Traduz o que esta na config para um indice atual do PortAudio.
 
@@ -94,7 +100,13 @@ def resolver_dispositivo(valor) -> int | None:
             if " ".join(rotular(d).split()).casefold() == alvo:
                 return i
     # O Windows renomeia o mesmo aparelho ("Microfone (H510-PRO)" vira
-    # "Microfone (2- H510-PRO)") quando ele reconecta noutra porta USB.
+    # "Microfone (2- H510-PRO)") quando ele reconecta noutra porta USB. A
+    # comparacao por substring abaixo NAO pegava esse caso - o "2- " fica no
+    # meio do nome -, entao primeiro compara sem o numero da porta.
+    sem_porta = _sem_numero_de_porta(alvo)
+    for i, d in entradas:
+        if _sem_numero_de_porta(" ".join(d["name"].split()).casefold()) == sem_porta:
+            return i
     for i, d in entradas:
         atual = " ".join(d["name"].split()).casefold()
         if len(alvo) > 8 and (alvo in atual or atual in alvo):
@@ -158,6 +170,11 @@ class Recorder:
             try:
                 self._stream.stop()
                 self._stream.close()
+            except Exception as exc:  # noqa: BLE001
+                # Fone Bluetooth que caiu no meio da gravacao: o PortAudio
+                # levanta aqui. Propagar matava a thread do motor com o app
+                # ainda dizendo "Pronto"; o stream ja esta morto de todo jeito.
+                self.last_error = str(exc)
             finally:
                 self._stream = None
                 _contar(-1)

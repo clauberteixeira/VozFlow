@@ -15,8 +15,16 @@ abre ele no editor padrão.
 
 > O arquivo é lido como `utf-8-sig` de propósito: o Notepad e o PowerShell
 > gravam UTF-8 com BOM, e o BOM fazia o `json.loads` falhar — a configuração
-> voltava aos padrões calada. Se o JSON estiver mesmo corrompido, o arquivo é
-> preservado com sufixo `.bak` em vez de sobrescrito.
+> voltava aos padrões calada. Se o JSON estiver mesmo corrompido (ou não for
+> um objeto `{...}`), o arquivo é preservado com sufixo `.bak` em vez de
+> sobrescrito.
+>
+> Um valor com o tipo errado — `"silence_ms": "700"` (texto onde vai número),
+> `"sounds": "sim"` (texto onde vai `true`/`false`) — volta ao padrão **só
+> naquela chave**; o resto do arquivo vale. Antes, um valor assim fazia o app
+> não abrir ou parar de transcrever sem aviso. O arquivo só é regravado quando
+> falta alguma chave ou algo foi corrigido, sempre por arquivo temporário, para
+> uma queda de energia nunca deixar um JSON pela metade.
 
 ---
 

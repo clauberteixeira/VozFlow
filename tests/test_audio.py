@@ -42,8 +42,8 @@ def test_aparelho_sumido_cai_no_padrao():
     assert audio.resolver_dispositivo("Microfone USB que nao existe mais") is None
 
 
-@pytest.mark.xfail(strict=True, reason="F-027: renomeio '(2- X)' do Windows nao e reconhecido")
 def test_mesmo_aparelho_renomeado_ao_trocar_de_porta_usb():
+    """F-027."""
     assert audio.resolver_dispositivo("Microfone (H510-PRO)") == 3
 
 

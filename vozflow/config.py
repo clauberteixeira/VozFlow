@@ -90,6 +90,37 @@ def _migrar_microfone(data: dict) -> None:
         data["input_device"] = None
 
 
+def _tipo_ok(padrao, valor) -> bool:
+    """O valor tem o tipo que o codigo espera para esta chave?
+
+    bool e subclasse de int em Python: sem a checagem explicita, "sounds": 1
+    passaria por bool e "nivel_fala": true passaria por numero.
+    """
+    if isinstance(padrao, bool):
+        return isinstance(valor, bool)
+    if isinstance(padrao, (int, float)):
+        return isinstance(valor, (int, float)) and not isinstance(valor, bool)
+    if isinstance(padrao, str):
+        return isinstance(valor, str)
+    if padrao is None:          # input_device: nome do microfone ou padrao do Windows
+        return valor is None or isinstance(valor, str)
+    return True
+
+
+def _validar_tipos(data: dict) -> None:
+    """Valor com tipo errado volta ao padrao, so naquela chave.
+
+    Antes, um "silence_ms": "700" editado a mao matava a thread do motor na
+    primeira comparacao (o app seguia "Pronto" sem transcrever nada), e um
+    "overlay_width": "abc" impedia o app de abrir - sob pythonw, sem mensagem.
+    Chave desconhecida fica como esta: pode ser de uma versao mais nova.
+    """
+    for chave, padrao in DEFAULTS.items():
+        if chave in data and not _tipo_ok(padrao, data[chave]):
+            print(f"[config] {chave}={data[chave]!r} invalido; usando {padrao!r}")
+            data[chave] = padrao
+
+
 class Config(dict):
     """Dicionario de config com acesso por atributo e persistencia em disco."""
 
@@ -102,11 +133,16 @@ class Config(dict):
     def __setattr__(self, key, value):
         self[key] = value
 
+    def _texto(self) -> str:
+        return json.dumps(self, indent=2, ensure_ascii=False)
+
     def save(self) -> None:
+        # Arquivo temporario + os.replace: uma queda de energia no meio da
+        # gravacao deixa o arquivo antigo inteiro, nunca um JSON pela metade.
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        CONFIG_PATH.write_text(
-            json.dumps(self, indent=2, ensure_ascii=False), encoding="utf-8"
-        )
+        tmp = CONFIG_PATH.with_name(CONFIG_PATH.name + ".tmp")
+        tmp.write_text(self._texto(), encoding="utf-8")
+        os.replace(tmp, CONFIG_PATH)
 
 
 def load() -> Config:
@@ -120,11 +156,18 @@ def load() -> Config:
     vez de ser sobrescrito - a config do usuario nao se perde calada.
     """
     data = dict(DEFAULTS)
+    em_disco = None
     if CONFIG_PATH.exists():
         try:
-            data.update(json.loads(CONFIG_PATH.read_text(encoding="utf-8-sig")))
-        except (json.JSONDecodeError, OSError, UnicodeDecodeError) as exc:
+            em_disco = CONFIG_PATH.read_text(encoding="utf-8-sig")
+            lido = json.loads(em_disco)
+            if not isinstance(lido, dict):
+                raise ValueError("o arquivo nao e um objeto JSON")
+            data.update(lido)
+        except (ValueError, OSError, UnicodeDecodeError) as exc:
+            # ValueError cobre o JSONDecodeError
             print(f"[config] config.json invalido ({exc}); usando padroes")
+            em_disco = None
             try:
                 backup = CONFIG_PATH.with_suffix(".json.bak")
                 backup.write_bytes(CONFIG_PATH.read_bytes())
@@ -132,6 +175,8 @@ def load() -> Config:
             except OSError:
                 pass
     _migrar_microfone(data)
+    _validar_tipos(data)
     cfg = Config(data)
-    cfg.save()
+    if em_disco != cfg._texto():   # so regrava se faltava chave ou algo mudou
+        cfg.save()
     return cfg
