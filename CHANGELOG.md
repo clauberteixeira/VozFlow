@@ -16,6 +16,14 @@ Versionamento [semântico](https://semver.org/lang/pt-BR/).
 - Desligado por padrão; a impressão da voz fica só no computador e pode ser
   apagada. Modelo de 26 MB baixado uma vez, conferido por hash.
 
+### Corrigido
+
+- **Configurações abrindo atrás das outras janelas** (pelo menu da bandeja só
+  aparecia no segundo clique): agora vem para a frente na primeira.
+- **Microfone automático:** a opção "Automático — o microfone padrão do
+  Windows" passa a seguir o Windows **a cada ditada**. Antes o VozFlow só
+  descobria o padrão ao abrir, então um fone ligado depois era ignorado.
+
 ---
 
 ## [1.2.0] — 2026-10-24

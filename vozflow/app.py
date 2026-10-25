@@ -316,6 +316,7 @@ class VozFlow(QtCore.QObject):
         if getattr(self, "_dlg_config", None) is not None:
             self._dlg_config.raise_()
             self._dlg_config.activateWindow()
+            janela.trazer_para_frente(int(self._dlg_config.winId()))
             return
         if self.engine.recording:
             self.sig_cancel.emit()

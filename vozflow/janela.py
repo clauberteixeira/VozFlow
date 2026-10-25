@@ -110,6 +110,35 @@ def alvo_valido(hwnd: int) -> bool:
     return True
 
 
+def trazer_para_frente(hwnd: int) -> bool:
+    """Poe uma janela do PROPRIO VozFlow na frente de tudo (ex.: Configuracoes).
+
+    O Windows so deixa trazer janela para a frente quem ja esta em primeiro
+    plano, e um app de bandeja nao esta: a janela abria ATRAS das outras e so
+    aparecia no segundo clique. Anexar a fila de entrada da janela que esta na
+    frente agora (nao a da nossa, que e a mesma thread) contorna a trava.
+    """
+    if _u32 is None or not existe(hwnd):
+        return False
+    try:
+        if _u32.IsIconic(hwnd):
+            _u32.ShowWindow(hwnd, SW_RESTORE)
+        meu = _k32.GetCurrentThreadId()
+        frente = _u32.GetForegroundWindow()
+        dele = _u32.GetWindowThreadProcessId(frente, None) if frente else 0
+        anexado = bool(dele and dele != meu and _u32.AttachThreadInput(meu, dele, True))
+        try:
+            _u32.BringWindowToTop(hwnd)
+            _u32.SetForegroundWindow(hwnd)
+            _u32.SetActiveWindow(hwnd)
+        finally:
+            if anexado:
+                _u32.AttachThreadInput(meu, dele, False)
+    except Exception:  # noqa: BLE001
+        return False
+    return True
+
+
 def titulo(hwnd: int) -> str:
     if _u32 is None or not existe(hwnd):
         return ""
