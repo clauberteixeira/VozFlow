@@ -256,6 +256,22 @@ def test_bandeja_sem_texto_ao_vivo_usa_a_janela_em_foco_no_fim(vozflow_app, qapp
     assert not any("nao voltou ao foco" in m for m in _mensagens(app))
 
 
+def test_bandeja_ida_e_volta_trava_na_janela_clicada_durante_a_fala(vozflow_app, qapp):
+    """Re-revisao do L4 (N3): comecou e parou pela bandeja, sem texto ao vivo."""
+    app, teclado, _clip, jan = vozflow_app(insercao_ao_vivo=False)
+    jan.foco = 0x900
+    app.iniciar()
+    app.engine._recording = True
+    jan.foco = 0x200                      # clicou na janela enquanto falava
+    app.engine.text.emit("parcial", False)
+    jan.foco = 0x900                      # ... e voltou na bandeja para parar
+    app.parar()
+    app.engine._recording = False
+    app.engine.done.emit("ida e volta")
+    assert esperar(lambda: "ctrl+v" in teclado.enviados, app=qapp)
+    assert jan.restauradas[-1] == 0x200
+
+
 def test_done_atrasado_de_ditada_velha_e_ignorado(vozflow_app, qapp):
     """Revisao do L4: depois do prazo, o done da ditada A nao vale para a B."""
     import time

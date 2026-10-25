@@ -629,6 +629,12 @@ class VozFlow(QtCore.QObject):
     def _ao_texto(self, texto: str, _final: bool) -> None:
         if not self.engine.recording:
             return
+        # Ditada pela bandeja: a trava pega a primeira janela de verdade que
+        # ganhar foco DURANTE a fala. Sem isto, fora do modo ao vivo (o worker
+        # nao roda) e parando tambem pela bandeja, o foco no fim e de novo a
+        # barra de tarefas e o texto so ia para a area de transferencia.
+        if self._esperar_alvo:
+            self._resolver_alvo()
         # Enquanto o texto esta esperando o foco voltar, o aviso do _ao_segurar
         # era apagado pela primeira frase nova e a janelinha voltava a parecer
         # normal - dando a impressao de que a ditada tinha parado. O aviso anda

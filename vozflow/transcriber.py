@@ -103,17 +103,20 @@ def _resto_depois_do_emitido(emitido: list[str], final: list[str]) -> list[str]:
             return final[j1:]
         # replace com quantidade diferente: quantas palavras da final cobrem
         # as letras ja digitadas? Entre os cortes dentro da folga (~20%, para
-        # grafia), o MENOR - "embora" -> "embor e" nao pode engolir o "e";
-        # sem nenhum dentro dela, o mais proximo - "tres" -> "3 pessoas" corta
-        # depois do "3".
+        # grafia), o MENOR - "embora" -> "embor e" nao pode engolir o "e".
+        # Pelo menos uma palavra: algo do bloco ja foi digitado ("eu vi a" ->
+        # "eu vi o carro" nao pode repetir o "o"). Sem nenhum corte dentro da
+        # folga - numero por extenso que virou digito, "vinte" -> "20" - as
+        # letras nao dizem nada, e vale a contagem de palavras do bloco.
         letras = sum(len(k) for k in ja[i1:fim])
+        if not letras:
+            return final[j1:]
         folga = max(1, round(letras * 0.2))
         somas = [0]
         for j in range(j1, j2):
             somas.append(somas[-1] + len(chaves[j]))
-        dentro = [c for c, s in enumerate(somas) if abs(s - letras) <= folga]
-        corte = dentro[0] if dentro else min(
-            range(len(somas)), key=lambda c: (abs(somas[c] - letras), c))
+        dentro = [c for c in range(1, len(somas)) if abs(somas[c] - letras) <= folga]
+        corte = dentro[0] if dentro else min(fim - i1, j2 - j1)
         return final[j1 + corte:]
     return final[fim:]
 

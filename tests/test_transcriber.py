@@ -41,6 +41,13 @@ def test_stop_e_cancel_sem_gravacao_sao_confirmados(motor, monkeypatch):
     (["estava", "chovendo"], "estava chovend muito forte hoje", "muito forte hoje"),
     (["-"], "- e depois", "e depois"),
     (["de", "ditado"], "digitado com calma", "com calma"),
+    # re-revisao do L4: numero por extenso -> digito e palavra curta trocada
+    (["custa", "vinte"], "custa 20 reais", "reais"),
+    (["eu", "vi", "a"], "eu vi o carro", "carro"),
+    (["eu", "vi", "a"], "eu vi o", None),
+    (["comprei", "o"], "comprei os livros", "livros"),
+    (["ok"], "okay entao", "entao"),
+    (["ta"], "esta bom", "bom"),
 ])
 def test_resto_final_alinha_pelo_texto_e_nao_pela_contagem(motor, emitido, final, resto):
     """F-023: o que ja foi digitado nao se desfaz; so falta o que vem depois."""
