@@ -1,0 +1,4 @@
+# Ferramentas de teste e lint. Nao entram no executavel.
+# Uso: .venv\Scripts\pip install -r requirements-dev.txt
+pytest==9.1.1
+ruff==0.17.2

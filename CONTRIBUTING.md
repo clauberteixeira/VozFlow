@@ -85,12 +85,29 @@ Outras duas armadilhas:
   evento como `is_replaying` e descarta. Para testar atalho, injete via
   `keybd_event` do Win32.
 
+### Testes automatizados
+
+A pasta `tests/` roda **sem microfone, sem teclado global e sem Enter de
+verdade**: `tests/conftest.py` troca teclado, área de transferência, foco de
+janela e o motor Whisper por dublês que só anotam o que teria acontecido, e
+aponta `VOZFLOW_CONFIG_DIR` para uma pasta temporária.
+
+```bat
+.venv\Scripts\pip install -r requirements-dev.txt
+.venv\Scripts\python -m pytest -q
+```
+
+Teste marcado `xfail` documenta um defeito conhecido (o motivo cita o achado);
+quando a correção entra, ele passa a falhar como "XPASS" e a marca sai. O CI
+(`.github/workflows/testes.yml`) roda a mesma suíte no Windows a cada push.
+
 O mínimo antes de abrir um PR:
 
-1. `python -m vozflow.diagnostico` passa;
-2. o app abre, dita uma frase e escreve no campo;
-3. o cenário que você mexeu, testado à mão;
-4. se mexeu no empacotamento, `gerar-exe.bat` roda e o `.exe` transcreve.
+1. `python -m pytest -q` passa;
+2. `python -m vozflow.diagnostico` passa;
+3. o app abre, dita uma frase e escreve no campo;
+4. o cenário que você mexeu, testado à mão;
+5. se mexeu no empacotamento, `gerar-exe.bat` roda e o `.exe` transcreve.
 
 ---
 
