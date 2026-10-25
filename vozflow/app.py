@@ -311,7 +311,9 @@ class VozFlow(QtCore.QObject):
             self._aviso_atualizacao(f"Nao consegui abrir o instalador da atualizacao ({exc}).")
             self.atualizador.adiar(versao, caminho)
             return
-        self.encerrar()
+        # O instalador so copia depois que a trava some: anotar agora e seguro.
+        self.atualizador.marcar_tentativa(versao)
+        self.encerrar(de_vez=True)
 
     def _aviso_atualizacao(self, msg: str) -> None:
         self.tray.showMessage(APP_NAME, msg, QtWidgets.QSystemTrayIcon.Information, 5000)
@@ -1085,7 +1087,11 @@ class VozFlow(QtCore.QObject):
             self.overlay.flash("Ultima transcricao copiada", "done", 1400)
 
     # -- saida -----------------------------------------------------------
-    def encerrar(self) -> None:
+    def encerrar(self, de_vez: bool = False) -> None:
+        """Sai do app. `de_vez`: para atualizar - termina o processo sem a
+        finalizacao do Python/CUDA, que pode travar e deixar a trava de
+        instancia unica presa (o instalador desistiria e o VozFlow ficaria
+        invisivel, sem atalhos, impedindo abrir de novo)."""
         try:
             keyboard.unhook_all_hotkeys()
         except Exception:
@@ -1111,4 +1117,10 @@ class VozFlow(QtCore.QObject):
                     t.join(timeout=1.0)
             os._exit(0)
             return
+        if de_vez:
+            self._thread_insercao.join(timeout=1.5)
+            for t in threading.enumerate():   # devolve a area de transferencia
+                if isinstance(t, threading.Timer):
+                    t.join(timeout=1.0)
+            os._exit(0)
         self.app.quit()

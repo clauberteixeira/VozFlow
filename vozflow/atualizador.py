@@ -194,12 +194,20 @@ def limpar_antigos(pasta: Path = PASTA, atual: str = __version__) -> None:
 # na inicializacao podia trocar a do usuario pelos padroes quando o
 # config.json estava travado (antivirus no boot).
 # ----------------------------------------------------------------------
-def ler_estado(pasta: Path = PASTA) -> dict:
+def ler_estado(pasta: Path = PASTA) -> dict | None:
+    """O estado salvo; {} se ainda nao existe; None se existe mas nao deu para
+    ler (travado no boot) - ai quem chamou nao deve regravar por cima."""
     try:
-        dados = json.loads((pasta / "estado.json").read_text(encoding="utf-8"))
-        return dados if isinstance(dados, dict) else {}
-    except (OSError, ValueError):
+        texto = (pasta / "estado.json").read_text(encoding="utf-8")
+    except FileNotFoundError:
         return {}
+    except OSError:
+        return None
+    try:
+        dados = json.loads(texto)
+    except ValueError:
+        return {}                      # corrompido: recomecar e o melhor
+    return dados if isinstance(dados, dict) else {}
 
 
 def gravar_estado(estado: dict, pasta: Path = PASTA) -> None:
@@ -308,6 +316,8 @@ class Atualizador(QtCore.QObject):
         if not self.ativo:
             return None
         estado = ler_estado(self.pasta)
+        if estado is None:          # travado agora: nao regrava por cima do "falhou"
+            return None
         agora = versao(__version__)
         msg = None
         tentada = estado.get("tentada") or {}
@@ -339,13 +349,16 @@ class Atualizador(QtCore.QObject):
             return
         if not pedido and not self.cfg.get("atualizar_auto", True):
             return
-        if pedido:
+        # "Pedido" so vira instalacao imediata quando ha o que instalar: um
+        # "ja esta na mais nova" nao pode deixar a PROXIMA automatica pular a
+        # espera do PC parado.
+        if pedido and self.pendente:
             self._imediato = True
-            if self.pendente:
-                self._timer_instalar.start(2000)
-                return
+            self._timer_instalar.start(2000)
+            return
         if self._thread is not None and self._thread.is_alive():
             if pedido:
+                self._imediato = True       # o download em andamento instala ao terminar
                 self.aviso.emit("Ja estou baixando a atualizacao; instalo assim que terminar.")
             return
         self._thread = threading.Thread(target=self._trabalho, args=(pedido,), daemon=True)
@@ -357,8 +370,11 @@ class Atualizador(QtCore.QObject):
             if not e_mais_nova(lanc):
                 self._resultado.emit(f"Voce ja esta na versao mais nova ({__version__}).", pedido)
                 return
-            if not pedido and ler_estado(self.pasta).get("falhou") == lanc.versao:
-                return          # falhou antes: so tenta de novo se pedirem pelo menu
+            if not pedido:
+                estado = ler_estado(self.pasta)
+                # falhou antes (ou nao da para saber agora): so pelo menu
+                if estado is None or estado.get("falhou") == lanc.versao:
+                    return
             if pedido:
                 self._resultado.emit(f"Baixando a versao {lanc.versao}...", True)
             caminho = baixar(lanc, self.pasta)
@@ -391,16 +407,17 @@ class Atualizador(QtCore.QObject):
         self._timer_instalar.stop()
         versao_nova, caminho = self.pendente
         self.pendente = None
-        estado = ler_estado(self.pasta)
+        self._ao_instalar(versao_nova, Path(caminho))
+
+    def marcar_tentativa(self, versao_nova: str) -> None:
+        """Logo antes de disparar o instalador (nao antes do aviso de 1,5 s:
+        um Sair nesse meio-tempo nao e uma instalacao que falhou)."""
+        estado = ler_estado(self.pasta) or {}
         estado["tentada"] = {"versao": versao_nova}
         estado.pop("falhou", None)
         gravar_estado(estado, self.pasta)
-        self._ao_instalar(versao_nova, Path(caminho))
 
     def adiar(self, versao_nova: str, caminho) -> None:
-        """O app nao pode fechar agora: volta a esperar, sem contar tentativa."""
-        estado = ler_estado(self.pasta)
-        estado.pop("tentada", None)
-        gravar_estado(estado, self.pasta)
+        """O app nao pode fechar agora: volta a esperar."""
         self.pendente = (versao_nova, str(caminho))
         self._timer_instalar.start(2000 if self._imediato else 30_000)

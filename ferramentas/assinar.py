@@ -47,6 +47,10 @@ def assinar(exe: Path) -> Path:
     sig = assinatura.assinar(secreta, msg)
     publica = assinatura.chave_publica(secreta)
     assert assinatura.conferir(publica, msg, sig)
+    from vozflow.atualizador import CHAVE_PUBLICA
+    if publica != CHAVE_PUBLICA:
+        sys.exit("Esta chave nao e a que o app aceita (atualizador.CHAVE_PUBLICA). "
+                 "Nenhum VozFlow instalado aceitaria esta versao.")
     saida = exe.with_name(exe.name + ".sig")
     saida.write_text(sig.hex() + "\n", encoding="ascii")
     print("Assinado:", saida)

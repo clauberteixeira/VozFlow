@@ -106,6 +106,18 @@ def test_assinatura_recusa_adulteracao():
     assert not assinatura.conferir(PUBLICA, msg, sig[:63])
 
 
+def test_chave_de_ordem_pequena_e_recusada():
+    """Com a identidade como chave, R = identidade e s = 0 "confeririam"."""
+    identidade = (1).to_bytes(32, "little")
+    assert not assinatura.conferir(identidade, b"qualquer", identidade + bytes(32))
+
+
+def test_codificacao_nao_canonica_e_recusada():
+    """y = p-1 com bit de sinal 1 decodificava para x = p."""
+    nao_canonica = ((assinatura.p - 1) | (1 << 255)).to_bytes(32, "little")
+    assert assinatura._descomprimir(nao_canonica) is None
+
+
 def test_app_tem_a_chave_publica_de_verdade():
     assert len(atu.CHAVE_PUBLICA) == 32
     assert atu.CHAVE_PUBLICA != PUBLICA
@@ -268,12 +280,34 @@ def montar(qapp, monkeypatch, tmp_path):
     return criar
 
 
-def test_instala_com_o_pc_parado_e_anota_a_tentativa(montar):
+def test_instala_com_o_pc_parado(montar):
     a = montar()
     a._tentar_instalar()
     assert a.instalados == [("9.9.9", Path("C:/x/" + NOME))]
     assert a.pendente is None
-    assert atu.ler_estado(a.pasta)["tentada"] == {"versao": "9.9.9"}
+    assert "tentada" not in atu.ler_estado(a.pasta)      # so ao disparar o instalador
+
+
+def test_marcar_tentativa_limpa_falha_anterior(montar):
+    a = montar()
+    atu.gravar_estado({"vista": "1.0", "falhou": "9.9.8"}, a.pasta)
+    a.marcar_tentativa("9.9.9")
+    assert atu.ler_estado(a.pasta) == {"vista": "1.0", "tentada": {"versao": "9.9.9"}}
+
+
+def test_procura_sem_novidade_nao_apressa_a_proxima_automatica(montar, monkeypatch):
+    """Um "ja esta na mais nova" pelo menu nao pode fazer a proxima
+    atualizacao automatica pular a espera do PC parado."""
+    monkeypatch.setattr(atu, "consultar", lambda: None)       # sem rede
+    a = montar(parado=0.0)
+    a.pendente = None
+    a.verificar(pedido=True)
+    a._thread.join(5)
+    a._ao_baixar("9.9.9", "C:/x/" + NOME, False)
+    assert a._imediato is False and a._timer_instalar.interval() == 30_000
+    a._timer_instalar.stop()
+    a._tentar_instalar()
+    assert a.instalados == []
 
 
 def test_nao_instala_no_meio_de_uma_ditada(montar):
@@ -382,6 +416,33 @@ def test_instalacao_que_falhou_nao_tenta_sozinha_de_novo(tmp_path, qapp, monkeyp
     a._timer_instalar.stop()
 
 
+def test_estado_travado_nao_e_regravado(tmp_path, qapp, monkeypatch):
+    """Travado no boot (antivirus): regravar so com {"vista"} apagaria o
+    "falhou" - e o app voltaria a fechar a cada minuto parado."""
+    atu.gravar_estado({"vista": "0.0.1", "falhou": "99.0.0"}, tmp_path)
+    antes = (tmp_path / "estado.json").read_bytes()
+    real = Path.read_text
+
+    def travado(self, *a, **k):
+        if self.name == "estado.json":
+            raise PermissionError("em uso")
+        return real(self, *a, **k)
+    monkeypatch.setattr(Path, "read_text", travado)
+    assert atu.ler_estado(tmp_path) is None
+    assert _atualizador(tmp_path).conferir_abertura() is None
+    monkeypatch.undo()
+    assert (tmp_path / "estado.json").read_bytes() == antes
+
+
+def test_estado_travado_nao_tenta_sozinho(tmp_path, qapp, monkeypatch):
+    monkeypatch.setattr(atu, "ler_estado", lambda pasta: None)
+    monkeypatch.setattr(atu, "consultar", lambda: atu.Lancamento("99.0.0", "", "", 0))
+    baixados = []
+    monkeypatch.setattr(atu, "baixar", lambda lanc, pasta: baixados.append(lanc))
+    _atualizador(tmp_path)._trabalho(pedido=False)
+    assert baixados == []
+
+
 def test_estado_ilegivel_nao_quebra(tmp_path, qapp):
     (tmp_path / "estado.json").write_text("{nao e json", encoding="utf-8")
     assert _atualizador(tmp_path).conferir_abertura() is None
@@ -468,3 +529,17 @@ def test_app_adia_se_comecou_a_ditar_antes_de_fechar(vozflow_app, monkeypatch):
     app._fechar_para_atualizar("9.9.9", Path("C:/x/" + NOME))
     assert disparos == [] and adiados == ["9.9.9"]
     app._quer_gravar = False
+
+
+def test_app_livre_dispara_marca_e_sai_de_vez(vozflow_app, monkeypatch):
+    from vozflow import app as modulo_app
+
+    app, *_ = vozflow_app()
+    ordem = []
+    monkeypatch.setattr(modulo_app, "instalar_atualizacao",
+                        lambda caminho, voltar=None: ordem.append(("instalar", voltar)))
+    monkeypatch.setattr(app.atualizador, "marcar_tentativa", lambda v: ordem.append(("marcar", v)))
+    monkeypatch.setattr(app, "encerrar", lambda de_vez=False: ordem.append(("encerrar", de_vez)))
+    app._fechar_para_atualizar("9.9.9", Path("C:/x/" + NOME))
+    assert [o[0] for o in ordem] == ["instalar", "marcar", "encerrar"]
+    assert ordem[0][1] and ordem[2][1] is True      # passa o /VOLTAR e sai de vez

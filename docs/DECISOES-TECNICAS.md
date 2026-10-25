@@ -351,7 +351,13 @@ depois e reabriu; sem `/REABRIR=1` não reabre. Se o VozFlow não fechar em
 30 s, o instalador desiste sem tocar em nada (conferido: código 1, nada
 instalado); se falhar no meio da cópia, o `DeinitializeSetup` reabre a versão
 antiga, cujo caminho o app passa em `/VOLTAR` (conferido com uma falha
-simulada). O app anota a versão tentada num arquivo próprio
+simulada antes da copia, e com espaco no caminho). Limite conhecido: o Inno
+nao guarda copia dos arquivos que sobrescreve, entao uma falha DEPOIS de
+copiar parte deles (disco cheio) pode deixar a pasta com arquivos de duas
+versoes - ai a saida e reinstalar a mao. Para atualizar, o app sai com
+`os._exit` depois da limpeza: a finalizacao do Python/CUDA pode travar, e
+com a trava de instancia unica presa o instalador desistiria e o VozFlow
+ficaria invisivel, impedindo abrir de novo. O app anota a versão tentada num arquivo próprio
 (`%LOCALAPPDATA%\VozFlow\atualizacao\estado.json`, nunca no `config.json`) e,
 se abrir numa versão menor, não tenta aquela de novo sozinho — senão fecharia
 a cada minuto parado. Numa atualização o instalador não mexe no

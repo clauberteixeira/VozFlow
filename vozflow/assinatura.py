@@ -62,7 +62,7 @@ def _iguais(P, Q) -> bool:
 def _recuperar_x(y: int, sinal: int):
     if y >= p:
         return None
-    x2 = (y * y - 1) * _inv(d * y * y + 1)
+    x2 = (y * y - 1) * _inv(d * y * y + 1) % p     # reduzido: recusa x = p
     if x2 == 0:
         return None if sinal else 0
     x = pow(x2, (p + 3) // 8, p)
@@ -125,7 +125,7 @@ def conferir(publica: bytes, msg: bytes, assinatura: bytes) -> bool:
     if len(publica) != 32 or len(assinatura) != 64:
         return False
     A = _descomprimir(publica)
-    if not A:
+    if not A or _iguais(_mult(8, A), (0, 1, 1, 0)):    # chave de ordem pequena
         return False
     Rs = assinatura[:32]
     R = _descomprimir(Rs)

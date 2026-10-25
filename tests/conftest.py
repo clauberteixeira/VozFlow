@@ -58,6 +58,20 @@ def timers_terminam_dentro_do_teste(monkeypatch):
             t.join(timeout=5)
 
 
+@pytest.fixture(autouse=True)
+def sem_rede(monkeypatch):
+    """Nenhum teste fala com a internet. O atualizador consulta o GitHub: um
+    teste que esquecesse de trocar a consulta por um duble acessava a API de
+    verdade (aconteceu) - agora falha na hora."""
+    import socket
+
+    def bloqueada(*_a, **_k):
+        raise AssertionError("teste tentou acessar a rede")
+
+    monkeypatch.setattr(socket.socket, "connect", bloqueada)
+    monkeypatch.setattr(socket, "create_connection", bloqueada)
+
+
 @pytest.fixture
 def pasta_config(tmp_path, monkeypatch):
     """Config isolada por teste."""
