@@ -121,28 +121,34 @@ def _resto_depois_do_emitido(emitido: list[str], final: list[str]) -> list[str]:
     return final[fim:]
 
 
+def _mesma_posicao(a: str, b: str) -> bool:
+    """A mesma palavra, so com a grafia trocada ("muitos" -> "muito")?"""
+    if a == b:
+        return True
+    return (difflib.SequenceMatcher(None, a, b).ratio() >= 0.5
+            and abs(len(a) - len(b)) <= max(1, max(len(a), len(b)) // 3))
+
+
 def _onde_termina_o_emitido(emitido: list[str], previa: list[str]) -> int:
     """Indice da previa logo depois do que ja foi digitado.
 
-    Quando o comeco da previa cobre o digitado palavra por palavra - mesmas
-    letras no total (folga de 20%) e a ultima palavra parecida -, o corte e
-    pela posicao: o Whisper so trocou palavras 1 para 1 ("muitos" -> "muito",
-    "cum" -> "com"). O alinhamento do _resto_depois_do_emitido fica para
-    quando a quantidade mudou ("para o carro" -> "pro carro azul"). Sozinho,
-    com palavra repetida, ele casava o "muito" digitado com o primeiro "muito"
-    de "foi muito muito bom" e o segundo saia de novo na tela. Medido num fuzz
-    de 20 mil frases com previas cortadas, reescritas e encolhendo: so o
-    alinhamento duplicou ou perdeu palavra em 11; assim, em nenhuma.
+    Quando o comeco da previa cobre o digitado palavra por palavra (cada par
+    igual ou com a grafia trocada: "muitos" -> "muito", "cum" -> "com"), o
+    corte e pela posicao. O alinhamento do _resto_depois_do_emitido fica para
+    quando o Whisper juntou ou separou palavras ("para o carro" -> "pro carro
+    azul", "porque" -> "por que"). Sozinho, com palavra repetida, ele casava o
+    "muito" digitado com o primeiro "muito" de "foi muito muito bom" e o
+    segundo saia de novo na tela. Comparar so o total de letras tambem nao
+    serve: "porque e" e "por que" tem as mesmas letras, e o "e" saia duas
+    vezes. Medido num fuzz de 20 mil frases com previas cortadas, reescritas e
+    encolhendo: so o alinhamento duplicou ou perdeu palavra em 11; assim, em
+    nenhuma.
     """
     n = len(emitido)
-    if n and len(previa) >= n:
-        ja = [texto_util._chave(p) for p in emitido]
-        cobre = [texto_util._chave(p) for p in previa[:n]]
-        letras = sum(map(len, ja))
-        ultima = ja[-1] == cobre[-1] or difflib.SequenceMatcher(
-            None, ja[-1], cobre[-1]).ratio() >= 0.5
-        if ultima and abs(sum(map(len, cobre)) - letras) <= max(1, round(letras * 0.2)):
-            return n
+    if n and len(previa) >= n and all(
+            _mesma_posicao(texto_util._chave(a), texto_util._chave(b))
+            for a, b in zip(emitido, previa, strict=False)):
+        return n
     return len(previa) - len(_resto_depois_do_emitido(emitido, previa))
 
 

@@ -135,10 +135,11 @@ O algoritmo é o **prefixo estável**:
    uma rodada.
 
 Onde termina o que já foi escrito, dentro de cada transcrição nova? Se o começo
-dela cobre o texto escrito com o mesmo total de letras (folga de 20%) e a
-última palavra parecida, o corte é pela posição — o Whisper só trocou palavras
-1 para 1 ("muitos" → "muito"). Só quando a quantidade muda ("para o carro" →
-"pro carro azul") entra o alinhamento palavra a palavra. O alinhamento sozinho,
+dela cobre o texto escrito palavra por palavra — cada par igual ou só com a
+grafia trocada, de tamanho parecido ("muitos" → "muito") —, o corte é pela
+posição. Quando o Whisper junta ou separa palavras ("para o carro" → "pro carro
+azul", "porque" → "por que") entra o alinhamento palavra a palavra. Comparar só
+o total de letras não serve: "porque e" e "por que" empatam. O alinhamento sozinho,
 com palavra repetida, casava o "muito" escrito com o primeiro "muito" de "foi
 muito muito bom" e escrevia o segundo de novo.
 

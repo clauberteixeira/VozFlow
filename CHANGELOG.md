@@ -15,8 +15,8 @@ Versionamento [semântico](https://semver.org/lang/pt-BR/).
   novas. Agora só o texto novo é comparado, e uma palavra confirmada que já
   tem outra depois sai na hora. Junto, o intervalo entre as transcrições
   desceu de 0,45 s para 0,3 s. Medido com uma leitura real de 25 s (mediana de
-  3 rodadas): a primeira palavra caiu de **2,5 s para 1,5 s** e o atraso
-  típico de **3,5 s para 2,4 s**, com menos palavras erradas (6 → 4).
+  3 rodadas): a primeira palavra caiu de **2,5 s para 1,6 s** e o atraso
+  típico de **3,5 s para 2,5 s**, com menos palavras erradas (6 → 4).
   Quem tinha 0,45 s gravado só por ser o padrão passa para 0,3 s; valor
   escolhido à mão fica.
 

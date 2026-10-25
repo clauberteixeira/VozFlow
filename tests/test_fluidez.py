@@ -108,6 +108,22 @@ def _ditar(motor, previas, final):
     return " ".join(motor.saidas).split()
 
 
+@pytest.mark.parametrize(("escrito", "final", "resto"), [
+    ("nao sei porque e", "nao sei por que e isso mesmo", "isso mesmo"),
+    ("nao sei por que e", "nao sei porque e é isso", "é isso"),
+    ("eu nao sei por que ele disse nao", "eu nao sei porque ele disse nao nao quero", "nao quero"),
+    ("fui em cima do muro e vi o", "fui encima do muro e vi o no jardim", "no jardim"),
+    ("e eu acho que e", "eu acho que e e verdade", "e verdade"),
+    ("eu e a gente fomos a", "eu e agente fomos a a praia", "a praia"),
+])
+def test_juncao_ou_separacao_na_parte_escrita(motor, escrito, final, resto):
+    """Mesmas letras no total nao quer dizer 1 para 1: "porque e" e "por que"
+    empatam, e o corte pela posicao duplicava ou perdia a palavra curta."""
+    motor._emitido = escrito.split()
+    motor._emitir_resto(final)
+    assert motor.saidas == [resto]
+
+
 def test_repeticao_com_palavra_reescrita_nao_duplica(motor):
     """O alinhamento casava o "muito" digitado com o PRIMEIRO "muito" da
     previa, e o segundo saia de novo: "foi muitos muito muito bom..."."""
