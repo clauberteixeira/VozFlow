@@ -54,13 +54,25 @@ def test_nome_amigavel_do_bluetooth():
     assert len(audio.nome_amigavel("x" * 80)) == 48
 
 
-def test_menu_lista_so_entradas_sem_repetir_rotulo():
-    itens = audio.entradas_para_menu()
-    rotulos = [r for r, _ in itens]
-    assert "Mapeador de som - Output" not in rotulos
-    assert len(rotulos) == len(set(rotulos)) == 3
-    # o que vai para a config e o nome CRU, unico que sobrevive a renumeracao
-    assert ("Headset AirPods", DISPOSITIVOS[2]["name"]) in itens
+def test_nome_do_padrao_prefere_o_wasapi(monkeypatch):
+    """O nome do MME vem cortado em 31 letras; o do WASAPI vem inteiro."""
+    monkeypatch.setattr(audio.sd, "query_hostapis", lambda: [
+        {"name": "MME", "default_input_device": 1},
+        {"name": "Windows WASAPI", "default_input_device": 3}])
+    assert audio.nome_do_padrao() == "Microfone (2- H510-PRO)"
+
+
+def test_nome_do_padrao_sem_wasapi_usa_o_padrao_do_portaudio(monkeypatch):
+    monkeypatch.setattr(audio.sd, "query_hostapis", lambda: [{"name": "MME", "default_input_device": 1}])
+    monkeypatch.setattr(audio.sd.default, "device", [1, 0])
+    assert audio.nome_do_padrao() == "Microfone (Realtek(R) Audio)"
+
+
+def test_nome_do_padrao_sem_audio_nao_quebra(monkeypatch):
+    def falha():
+        raise OSError("sem PortAudio")
+    monkeypatch.setattr(audio.sd, "query_hostapis", falha)
+    assert audio.nome_do_padrao() is None
 
 
 def test_nome_do_indice():

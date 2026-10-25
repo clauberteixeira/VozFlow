@@ -5,6 +5,7 @@ Tudo que da para ajustar fica aqui, em abas. O menu da bandeja so tem acoes.
 
 from __future__ import annotations
 
+import os
 import threading
 
 import numpy as np
@@ -12,7 +13,7 @@ from PySide6 import QtCore, QtWidgets
 
 from . import atalhos as atl
 from . import config, janela
-from .audio import Recorder, entradas_para_menu, rms_level
+from .audio import Recorder, nome_do_padrao, rms_level
 from .inserter import url_sem_criptografia
 from .overlay import POSICOES
 
@@ -151,27 +152,20 @@ class JanelaConfiguracoes(QtWidgets.QDialog):
     # ==================================================================
     def _aba_microfone(self) -> QtWidgets.QWidget:
         w = QtWidgets.QWidget()
-        self.cbo_mic = QtWidgets.QComboBox()
-        # None = automatico: a cada ditada o VozFlow usa o microfone padrao do
-        # Windows naquele momento (fone ligado depois tambem vale)
-        self.cbo_mic.addItem("Automatico - o microfone padrao do Windows (recomendado)", None)
-        try:
-            # guarda o NOME do aparelho, nao o indice: o indice do PortAudio
-            # muda de posicao quando outro dispositivo entra ou sai
-            for rotulo, nome_cru in entradas_para_menu():
-                self.cbo_mic.addItem(rotulo, nome_cru)
-        except Exception:  # noqa: BLE001
-            pass
-        atual = self.cfg.get("input_device")
-        pos = self.cbo_mic.findData(atual)
-        if pos < 0 and atual:
-            # o microfone escolhido esta desligado agora: mostra assim mesmo,
-            # senao abrir esta tela trocaria a escolha do usuario calada
-            from .audio import nome_amigavel
-            self.cbo_mic.addItem(nome_amigavel(str(atual)) + "  (desconectado)", atual)
-            pos = self.cbo_mic.count() - 1
-        self.cbo_mic.setCurrentIndex(max(0, pos))
-        self.cbo_mic.currentIndexChanged.connect(self._trocar_medidor)
+        # Sempre automatico: a cada ditada o VozFlow usa o microfone padrao do
+        # Windows naquele momento. A lista de aparelhos saiu: o PortAudio mostra
+        # o mesmo microfone uma vez por driver (MME, DirectSound, WASAPI,
+        # WDM-KS), mais entradas virtuais e a "Mixagem estereo", que grava o som
+        # do proprio PC. Trocar de microfone e no Windows, como em todo app.
+        self.lbl_mic = QtWidgets.QLabel()
+        self.lbl_mic.setWordWrap(True)
+        self.btn_som_windows = QtWidgets.QPushButton("Trocar o microfone no Windows...")
+        self.btn_som_windows.clicked.connect(self._abrir_som_do_windows)
+        caixa_mic = QtWidgets.QVBoxLayout()
+        caixa_mic.setSpacing(6)
+        caixa_mic.addWidget(self.lbl_mic)
+        caixa_mic.addWidget(self.btn_som_windows, 0, QtCore.Qt.AlignLeft)
+        self._pintar_microfone()
 
         self.barra_nivel = QtWidgets.QProgressBar()
         self.barra_nivel.setRange(0, 100)
@@ -194,7 +188,7 @@ class JanelaConfiguracoes(QtWidgets.QDialog):
 
         form = QtWidgets.QFormLayout()
         form.setSpacing(10)
-        form.addRow("Entrada de audio", self.cbo_mic)
+        form.addRow("Entrada de audio", caixa_mic)
         form.addRow("Nivel agora", self.barra_nivel)
         form.addRow("Corte atual", self.lbl_corte)
 
@@ -216,20 +210,31 @@ class JanelaConfiguracoes(QtWidgets.QDialog):
             f"{v:.5f}" + ("  (desligado - capta qualquer som)" if v <= 0 else "")
         )
 
-    # -- medidor ao vivo ------------------------------------------------
-    def _trocar_medidor(self) -> None:
-        self._parar_medidor()
-        self._iniciar_medidor()
+    def _pintar_microfone(self) -> None:
+        nome = nome_do_padrao()
+        self.lbl_mic.setText(
+            "Automatico - segue o microfone padrao do Windows."
+            + ("\nUsando agora: " + nome if nome else "")
+        )
 
+    def _abrir_som_do_windows(self) -> None:
+        try:
+            os.startfile("ms-settings:sound")  # noqa: S606 - URI fixa do Windows
+        except OSError:
+            pass
+
+    # -- medidor ao vivo ------------------------------------------------
     def _iniciar_medidor(self) -> None:
         if self._calibrando or self._fechado:
             return
         try:
-            self._medidor = Recorder(device=self.cbo_mic.currentData())
+            self._medidor = Recorder(device=None)
             self._medidor.start()
             self._timer.start(80)
         except Exception:  # noqa: BLE001
             self._medidor = None
+        # o start acabou de reler os aparelhos: o nome mostrado fica em dia
+        self._pintar_microfone()
 
     def _parar_medidor(self) -> None:
         self._timer.stop()
@@ -281,7 +286,7 @@ class JanelaConfiguracoes(QtWidgets.QDialog):
     def _rodar_calibracao(self) -> None:
         from .calibracao import _medir, calcular_limiar
 
-        dev = self.cbo_mic.currentData()
+        dev = None                       # sempre o padrao do Windows
         try:
             self._msg("Medindo o ambiente... NAO fale.", "#c87f0a")
             fundo = _medir(dev)
@@ -561,7 +566,7 @@ class JanelaConfiguracoes(QtWidgets.QDialog):
         antes = dict(self.cfg)
         self.cfg.update(self._valores_atalhos())
         self.cfg["suppress_hotkeys"] = self.chk_suprimir.isChecked()
-        self.cfg["input_device"] = self.cbo_mic.currentData()
+        self.cfg["input_device"] = None      # microfone sempre automatico
         self.cfg["insercao_ao_vivo"] = self.chk_aovivo.isChecked()
         self.cfg["press_enter_after"] = self.chk_enter.isChecked()
         self.cfg["press_enter_after2"] = self.chk_enter2.isChecked()

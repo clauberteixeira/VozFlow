@@ -310,23 +310,30 @@ def nome_amigavel(nome: str) -> str:
     return " ".join(nome.split())[:48]
 
 
+def nome_do_padrao() -> str | None:
+    """Nome do microfone padrao do Windows, para mostrar na tela.
+
+    Prefere o nome do WASAPI: o do MME (o padrao do PortAudio) vem cortado em
+    31 letras - "Microfone (H510-PRO USB Gaming ". Mostra o que o PortAudio
+    sabe desde o ultimo reinicio, que acontece a cada microfone aberto no
+    modo automatico (ver Recorder.start).
+    """
+    try:
+        indice = None
+        for api in sd.query_hostapis():
+            if "WASAPI" in api.get("name", ""):
+                indice = api.get("default_input_device")
+                break
+        if indice is None or indice < 0:
+            indice = sd.default.device[0]
+        if indice is None or indice < 0:
+            return None
+        return nome_amigavel(sd.query_devices()[indice]["name"])
+    except Exception:  # noqa: BLE001 - sem audio: so nao mostra o nome
+        return None
+
+
 def list_input_devices() -> list[tuple[int, str]]:
     """(indice, nome) de cada dispositivo de entrada disponivel."""
     return [(i, nome_amigavel(d["name"])) for i, d in _entradas()]
 
-
-def entradas_para_menu() -> list[tuple[str, str]]:
-    """(rotulo da tela, nome cru para gravar na config), sem repetidos.
-
-    O nome cru e que vai para o config.json: e o unico identificador que
-    sobrevive a lista do PortAudio ser renumerada.
-    """
-    saida: list[tuple[str, str]] = []
-    vistos: set[str] = set()
-    for _, d in _entradas():
-        rotulo = nome_amigavel(d["name"])
-        if rotulo in vistos:
-            continue
-        vistos.add(rotulo)
-        saida.append((rotulo, d["name"]))
-    return saida

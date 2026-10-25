@@ -37,12 +37,12 @@ def test_indice_antigo_do_microfone_vira_nome(pasta_config, monkeypatch):
     from vozflow import audio
 
     monkeypatch.setattr(audio, "nome_do_indice", lambda i: "Microfone X" if i == 4 else None)
-    config.CONFIG_PATH.write_text(json.dumps({"input_device": 4}), encoding="utf-8")
+    config.CONFIG_PATH.write_text(json.dumps({"input_device": 4, "config_versao": 3}), encoding="utf-8")
     assert config.load()["input_device"] == "Microfone X"
 
 
 def test_indice_invalido_do_microfone_cai_no_padrao(pasta_config):
-    config.CONFIG_PATH.write_text(json.dumps({"input_device": True}), encoding="utf-8")
+    config.CONFIG_PATH.write_text(json.dumps({"input_device": True, "config_versao": 3}), encoding="utf-8")
     assert config.load()["input_device"] is None
 
 

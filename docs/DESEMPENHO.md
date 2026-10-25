@@ -16,16 +16,48 @@ falar e a primeira palavra aparecer no campo.
 | esperando o silêncio fechar a frase | 8,0 s | — |
 | prefixo estável, `partial_interval` 0,6 s | 3,6 s | 2,7 s |
 | + comparação sem pontuação | 2,7 s | 1,8 s |
-| **+ `partial_interval` 0,45 s** | **2,4 s** | **1,5 s** |
+| + `partial_interval` 0,45 s | 2,4 s | 1,5 s |
+| **+ só o texto novo comparado, `partial_interval` 0,3 s** | — | **1,2 s** |
 
-Duas observações sobre a tabela:
+Observações sobre a tabela:
 
 - **A comparação sem pontuação sozinha valeu 0,86 s.** O Whisper trocar
   `"Bom dia!"` por `"Bom dia,"` fazia a palavra "não bater" no teste de
   estabilidade e custava uma rodada inteira antes de qualquer texto aparecer.
-- **Abaixo de 0,45 s o ganho é pequeno e o custo não.** Em 0,35 s a GPU passa
-  ~80% do tempo transcrevendo, para economizar 0,17 s. Por isso o padrão parou
-  em 0,45 s.
+- **Em 0,45 s o intervalo parou na 1.2.0, e desceu para 0,3 s na 1.2.2.** Com
+  a regra antiga, abaixo de 0,45 s o ganho era pequeno. Com a comparação só do
+  texto novo cada transcrição a mais vira texto — ver a seção abaixo.
+
+---
+
+## Fluidez com fala real contínua (1.2.2)
+
+Medido com o motor real: uma leitura contínua de 25 s gravada no microfone do
+usuário (e uma fala sintética de 20 s) entra em tempo real por um microfone
+falso; um teclado falso anota o instante de cada letra. O instante em que cada
+palavra foi dita vem do próprio Whisper (`word_timestamps`) sobre o áudio
+inteiro. Mediana de 3 rodadas por configuração, RTX 4060:
+
+| voz real (70 palavras) | 1ª palavra | atraso típico | atraso p90 | maior engasgo | palavras diferentes |
+|---|---|---|---|---|---|
+| 1.2.1 (regra antiga, 0,45 s) | 2,52 s | 3,50 s | 4,08 s | 1,06 s | 6 |
+| regra nova, 0,45 s | 2,14 s | 2,90 s | 3,34 s | 1,12 s | 5 |
+| **regra nova, 0,3 s (1.2.2)** | **1,19 s** | **2,39 s** | **2,81 s** | **0,72 s** | **4** |
+
+| fala sintética | 1ª palavra | atraso típico | atraso p90 | maior engasgo |
+|---|---|---|---|---|
+| 1.2.1 | 2,01 s | 2,80 s | 3,09 s | 0,56 s |
+| **1.2.2** | **1,79 s** | **1,90 s** | **2,17 s** | **0,34 s** |
+
+O "atraso" vai de quando a palavra termina de ser dita até a última letra dela
+aparecer no campo. Conferido também com o código final da branch (2 rodadas na
+voz real): 1ª palavra 1,19–1,25 s, atraso típico 2,22–2,35 s.
+
+O que travava: a comparação ia desde o início do trecho, e o Whisper reescreve
+à toa palavras que já estão no campo — só 10 de 25 transcrições liberavam
+texto. Ressalva: em 0,3 s a GPU fica perto de 100% enquanto você fala; se o
+texto atrasar numa GPU mais fraca, o intervalo já cresce sozinho, e
+`partial_interval` em `0.45` volta ao comportamento anterior.
 
 ---
 

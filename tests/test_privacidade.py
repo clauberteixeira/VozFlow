@@ -104,7 +104,7 @@ def test_url_sem_criptografia(url, inseguro):
 def test_configuracoes_avisam_webhook_http_mas_salvam(qapp, pasta_config, monkeypatch):
     from vozflow import configuracoes
 
-    monkeypatch.setattr(configuracoes, "entradas_para_menu", lambda: [])
+    monkeypatch.setattr(configuracoes, "nome_do_padrao", lambda: None)
     dlg = configuracoes.JanelaConfiguracoes(config.Config(dict(config.DEFAULTS)))
     dlg.cbo_acao.setCurrentIndex(dlg.cbo_acao.findData("webhook"))
     dlg.ed_webhook.setText("http://exemplo.com/hook")

@@ -201,10 +201,28 @@ inteira antes de qualquer texto aparecer.
 
 Esse detalhe sozinho atrasava a primeira palavra em **0,86 s**.
 
-### `partial_interval` parou em 0,45 s
+### `partial_interval` desceu para 0,3 s (1.2.2)
 
-Abaixo disso o ganho é pequeno e o custo não: em 0,35 s a GPU passa ~80% do
-tempo transcrevendo, para economizar 0,17 s.
+Na 1.2.0 ele parou em 0,45 s: em 0,35 s a GPU passava ~80% do tempo
+transcrevendo para economizar só 0,17 s. O ganho era pequeno porque a regra do
+prefixo estável desperdiçava as transcrições — comparava o trecho desde o
+início, e qualquer mudança na parte já escrita travava as palavras novas.
+
+Com a comparação só do texto novo, cada transcrição a mais vira texto. Medido
+3 vezes com uma leitura real de 25 s: a primeira palavra caiu de 2,1 s (0,45 s)
+para 1,2 s (0,3 s), e o atraso típico de 2,9 s para 2,4 s. Em 0,2 s o ganho
+some (2,24 s) e a GPU fica em 98%: parou em 0,3 s. Quem tinha 0,45 s gravado
+só por ser o padrão passa para 0,3 s; valor escolhido à mão fica.
+
+### O microfone é sempre o padrão do Windows (1.2.2)
+
+A aba Microfone listava todo aparelho que o PortAudio enxerga — e ele mostra o
+mesmo microfone uma vez por driver (MME, DirectSound, WASAPI, WDM-KS), mais
+entradas virtuais ("Mapeador de som", "Driver de captura primário") e a
+"Mixagem estéreo", que grava o som do próprio PC. Com o modo automático
+seguindo o Windows a cada ditada, a lista só confundia. Agora a aba mostra o
+microfone padrão (pelo nome do WASAPI: o do MME vem cortado em 31 letras) e um
+botão para as configurações de som do Windows.
 
 ---
 

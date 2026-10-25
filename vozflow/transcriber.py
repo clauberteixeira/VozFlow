@@ -200,7 +200,7 @@ class LiveTranscriber(QtCore.QThread):
         self._had_speech = False
         self._last_partial = 0.0
         self._emitido: list[str] = []      # palavras ja escritas na janela
-        self._chaves_ant: list[str] = []   # a mesma, sem pontuacao
+        self._palavras_ant: list[str] = []  # previa anterior do trecho aberto
         self._piso = 0.0005                # piso de ruido, recalibrado ao vivo
         self._perto = False                # esta chegando voz de perto agora?
         self._rejeitado = 0.0              # segundos de som barrado pelo portao
@@ -511,22 +511,34 @@ class LiveTranscriber(QtCore.QThread):
 
         Esperar o silencio fechar o trecho custava ate 8 s ate a primeira
         palavra aparecer na tela. Uma palavra que sobreviveu a duas
-        transcricoes seguidas do mesmo trecho ja pode ser escrita: a ultima
-        fica de fora porque ainda muda quando chega mais audio.
+        transcricoes seguidas do mesmo trecho ja pode ser escrita.
+
+        Compara so o que vem DEPOIS do que ja foi escrito. A comparacao desde
+        o inicio do trecho travava tudo quando a previa mudava um detalhe na
+        parte ja escrita (uma virgula, uma palavra parecida) - o que nao se
+        desfaz de qualquer jeito. Medido com a voz real, numa leitura
+        continua de 25 s: so 10 de 25 previas liberavam texto e o atraso
+        tipico era 3,7 s; assim, 20 de 25 e 2,7 s.
         """
         palavras = parcial.split()
+        # Onde termina o que ja esta na tela, nesta previa e na anterior
+        ini = len(palavras) - len(_resto_depois_do_emitido(self._emitido, palavras))
+        ant = self._palavras_ant
+        ini_ant = len(ant) - len(_resto_depois_do_emitido(self._emitido, ant))
+        self._palavras_ant = palavras
         # Compara sem pontuacao nem acento: o Whisper troca "Bom dia!" por
         # "Bom dia," entre duas parciais e a palavra deixaria de "bater",
         # custando uma rodada inteira antes de qualquer texto aparecer.
-        chaves = [texto_util._chave(p) for p in palavras]
+        agora = [texto_util._chave(p) for p in palavras[ini:]]
+        antes = [texto_util._chave(p) for p in ant[ini_ant:]]
         comum = 0
-        for a, b in zip(chaves, self._chaves_ant, strict=False):
+        for a, b in zip(agora, antes, strict=False):
             if a != b:
                 break
             comum += 1
-        self._chaves_ant = chaves
-
-        novas = palavras[len(self._emitido):max(0, comum - 1)]
+        # A ultima palavra da previa ainda muda quando chega mais audio
+        # ("confir" -> "confirmar"): fica de fora. As outras confirmadas saem.
+        novas = palavras[ini:ini + max(0, min(comum, len(agora) - 1))]
         if novas:
             self._emitido.extend(novas)
             self.segmento.emit(" ".join(novas))
@@ -537,7 +549,7 @@ class LiveTranscriber(QtCore.QThread):
         if resto:
             self.segmento.emit(" ".join(resto))
         self._emitido = []
-        self._chaves_ant = []
+        self._palavras_ant = []
 
     def _fechar_trecho(self) -> None:
         audio, self._buf = self._buf, np.empty(0, dtype=np.float32)

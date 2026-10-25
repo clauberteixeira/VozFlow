@@ -51,15 +51,49 @@ def test_microfone_escolhido_nao_recarrega_a_toa(portaudio):
     rec.stop()
 
 
-def test_tela_oferece_o_automatico_como_recomendado(qapp, pasta_config, monkeypatch):
+def test_tela_nao_lista_microfones_e_mostra_o_do_windows(qapp, pasta_config, monkeypatch):
+    """A lista repetia o mesmo microfone por driver e trazia entradas virtuais
+    e a Mixagem estereo; com o automatico ela nao tinha mais serventia."""
+    from PySide6 import QtWidgets
+
     from vozflow import configuracoes
 
-    monkeypatch.setattr(configuracoes, "entradas_para_menu", lambda: [("Headset X", "Headset X")])
+    monkeypatch.setattr(configuracoes, "nome_do_padrao", lambda: "Microfone (H510-PRO USB Gaming Headset)")
     dlg = configuracoes.JanelaConfiguracoes(config.Config(dict(config.DEFAULTS)))
-    assert dlg.cbo_mic.itemData(0) is None
-    assert "Autom" in dlg.cbo_mic.itemText(0) and "padr" in dlg.cbo_mic.itemText(0).lower()
-    assert dlg.cbo_mic.currentIndex() == 0
+    assert dlg.abas.widget(1).findChildren(QtWidgets.QComboBox) == []   # aba Microfone
+    assert "Autom" in dlg.lbl_mic.text() and "H510-PRO USB Gaming Headset" in dlg.lbl_mic.text()
     dlg.deleteLater()
+
+
+def test_salvar_grava_sempre_o_automatico(qapp, pasta_config, monkeypatch):
+    from vozflow import configuracoes
+
+    monkeypatch.setattr(configuracoes, "nome_do_padrao", lambda: None)
+    cfg = config.Config(dict(config.DEFAULTS, input_device="Microphone (Camo)"))
+    dlg = configuracoes.JanelaConfiguracoes(cfg)
+    dlg._salvar()
+    assert cfg["input_device"] is None
+    dlg.deleteLater()
+
+
+def test_botao_abre_o_som_do_windows(qapp, pasta_config, monkeypatch):
+    from vozflow import configuracoes
+
+    abertos = []
+    monkeypatch.setattr(configuracoes, "nome_do_padrao", lambda: None)
+    monkeypatch.setattr(configuracoes.os, "startfile", abertos.append, raising=False)
+    dlg = configuracoes.JanelaConfiguracoes(config.Config(dict(config.DEFAULTS)))
+    dlg.btn_som_windows.click()
+    assert abertos == ["ms-settings:sound"]
+    dlg.deleteLater()
+
+
+def test_microfone_fixo_de_versao_antiga_vira_automatico(pasta_config):
+    import json
+
+    config.CONFIG_PATH.write_text(json.dumps(
+        {"input_device": "Microphone (Camo)", "config_versao": 2}), encoding="utf-8")
+    assert config.load()["input_device"] is None
 
 
 # ----------------------------------------------------------------------
@@ -126,7 +160,7 @@ def test_configuracoes_pedem_para_vir_para_a_frente_ao_abrir(qapp, pasta_config,
     from vozflow import configuracoes
 
     pedidos = []
-    monkeypatch.setattr(configuracoes, "entradas_para_menu", lambda: [])
+    monkeypatch.setattr(configuracoes, "nome_do_padrao", lambda: None)
     monkeypatch.setattr(configuracoes.janela, "trazer_para_frente", lambda h: pedidos.append(h) or True)
     monkeypatch.setattr(configuracoes, "Recorder", lambda **_k: type("R", (), {
         "start": lambda s: None, "stop": lambda s: None,

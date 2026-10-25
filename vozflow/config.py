@@ -43,7 +43,10 @@ DEFAULTS: dict = {
 
     # --- captura ---
     "input_device": None,      # nome do microfone; None = padrao do Windows
-    "partial_interval": 0.45,  # segundos entre retranscricoes do trecho aberto
+    # segundos entre retranscricoes do trecho aberto (minimo: cresce sozinho
+    # se a maquina demora mais que isso). Medido com voz real: 0,45 -> 0,3
+    # baixou o atraso tipico de 2,7 s para 2,4 s; 0,2 deixava a GPU a 98%.
+    "partial_interval": 0.3,
     "silence_ms": 700,         # silencio que fecha um trecho
     "nivel_minimo": 0.004,     # RMS abaixo disso conta como mudo (anti-alucinacao)
     "nivel_fala": 0.010,       # abaixo disso e som de fundo, nao voce (use Calibrar)
@@ -71,7 +74,7 @@ DEFAULTS: dict = {
     "historico_max_mb": 5,
     "historico_dias": 7,
     # Versao do formato: arquivo sem ela e de antes do modelo "auto" (ver load).
-    "config_versao": 2,
+    "config_versao": 3,
 }
 
 
@@ -108,6 +111,14 @@ def _migrar_modelo(lido: dict, data: dict) -> None:
     """
     if "config_versao" not in lido and lido.get("model") == "large-v3-turbo":
         data["model"] = "auto"
+    # versao 3: intervalo padrao entre previas de 0,45 para 0,3 (fluidez)
+    versao = lido.get("config_versao") if isinstance(lido.get("config_versao"), int) else 1
+    if versao < 3 and lido.get("partial_interval") == 0.45:
+        data["partial_interval"] = 0.3
+    # versao 3: a tela nao escolhe mais microfone - sempre o padrao do Windows.
+    # Um microfone fixo salvo antes ficaria preso sem jeito de trocar pela tela.
+    if versao < 3:
+        data["input_device"] = None
 
 
 def _tipo_ok(padrao, valor) -> bool:

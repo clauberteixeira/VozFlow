@@ -16,7 +16,7 @@ microfone ──> Recorder ──> VAD ──> buffer do trecho ──> Whisper 
 O detalhe que dá a sensação de tempo real está no meio:
 
 > **Enquanto um trecho está aberto, ele é retranscrito inteiro a cada
-> `partial_interval` segundos** (0,45 s por padrão), e o resultado vai para a
+> `partial_interval` segundos** (0,3 s por padrão), e o resultado vai para a
 > janela flutuante como texto provisório. Quando `silence_ms` (700 ms) de
 > silêncio fecham o trecho, ele é transcrito uma última vez com mais qualidade
 > (`beam_size=5`) e vira texto definitivo, escrito no campo em foco.
@@ -124,12 +124,20 @@ depois apagar.
 O algoritmo é o **prefixo estável**:
 
 1. o trecho aberto é retranscrito a cada `partial_interval`;
-2. uma palavra que sobreviveu **igual a duas transcrições seguidas** é
+2. só o que vem **depois do que já foi escrito** é comparado com a
+   transcrição anterior; uma palavra que sobreviveu **igual às duas** é
    considerada firme e vai para o campo;
-3. a **última** palavra firme fica retida, porque ela ainda costuma mudar
-   quando chega mais áudio.
+3. a **última palavra da transcrição** fica retida, porque ela ainda costuma
+   mudar quando chega mais áudio ("confir..." vira "confirmar"). Uma palavra
+   firme que já tem outra depois dela sai na hora.
 
 Nada é escrito duas vezes e nada precisa ser apagado.
+
+Até a 1.2.1 a comparação ia desde o **início** do trecho. Numa fala contínua o
+Whisper reescreve à toa uma palavra que já está no campo ("o" vira "um"), e
+isso travava todas as palavras novas: medido com uma leitura real de 25 s, só
+10 de 25 transcrições liberavam texto. Como o que já foi escrito não volta
+atrás, comparar essa parte não servia para nada.
 
 A comparação entre duas transcrições **ignora pontuação e acento**. Sem isso, o
 Whisper trocar `"Bom dia!"` por `"Bom dia,"` fazia a palavra "não bater" e

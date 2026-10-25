@@ -156,7 +156,7 @@ def test_previa_na_cpu_nao_paga_o_fallback_de_temperatura(qapp, pasta_config, na
 def test_configuracoes_oferecem_e_salvam_o_automatico(qapp, pasta_config, monkeypatch):
     from vozflow import configuracoes
 
-    monkeypatch.setattr(configuracoes, "entradas_para_menu", lambda: [])
+    monkeypatch.setattr(configuracoes, "nome_do_padrao", lambda: None)
     dlg = configuracoes.JanelaConfiguracoes(config.Config(dict(config.DEFAULTS)))
     assert dlg.cbo_modelo.currentData() == "auto"
     assert "Autom" in dlg.cbo_modelo.currentText()

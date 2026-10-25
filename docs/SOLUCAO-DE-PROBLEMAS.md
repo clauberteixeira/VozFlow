@@ -19,8 +19,10 @@ imprime.
 Abra **Configurações → Microfone**. Tem um **medidor de nível ao vivo** ali:
 fale e veja se a barra se mexe.
 
-- **A barra não se mexe** → microfone errado selecionado, ou o aparelho está
-  mudo no Windows. Veja os casos de Bluetooth abaixo.
+- **A barra não se mexe** → o microfone padrão do Windows não é o que você
+  está usando, ou ele está mudo. A aba mostra qual o VozFlow está usando; o
+  botão **Trocar o microfone no Windows** abre as configurações de som. Veja
+  os casos de Bluetooth abaixo.
 - **A barra se mexe mas nada é transcrito** → o `nivel_fala` está alto demais
   para a sua voz. Rode **Calibrar com a minha voz**.
 
@@ -51,8 +53,9 @@ Um fone Bluetooth aparece no Windows como **dois perfis**:
 Pior: o Windows costuma marcar o mic fantasma do A2DP como *Dispositivo
 Padrão* e o HFP só como *Dispositivo de Comunicação Padrão*.
 
-**Escolha o `Headset (...)`** na aba Microfone. E não estranhe: o perfil HFP
-some da lista quando nenhum app o está usando.
+**Defina o `Headset (...)` como microfone padrão no Windows** (aba Microfone →
+**Trocar o microfone no Windows**). E não estranhe: o perfil HFP some da lista
+quando nenhum app o está usando.
 
 ### "Microfone indisponível: Unanticipated host error [PaErrorCode -9999]"
 

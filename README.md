@@ -128,10 +128,10 @@ O problema de escrever ao vivo é que o Whisper muda de ideia: "pre..." vira
 "preciso", que vira "preciso confirmar". Não dá para escrever cada palpite e
 depois apagar.
 
-A solução é **prefixo estável**: o trecho aberto é retranscrito a cada 0,45 s,
-e uma palavra só vai para o campo depois de aparecer **igual em duas
-transcrições seguidas**. A última palavra firme fica retida, porque ela ainda
-costuma mudar quando chega mais áudio. Nada é escrito duas vezes e nada precisa
+A solução é **prefixo estável**: o trecho aberto é retranscrito a cada 0,3 s,
+e uma palavra nova só vai para o campo depois de aparecer **igual em duas
+transcrições seguidas**. A última palavra da transcrição fica retida, porque
+ela ainda costuma mudar quando chega mais áudio. Nada é escrito duas vezes e nada precisa
 ser apagado.
 
 E o texto não sai em blocos: as letras saem em doses de 25 ms, num ritmo que
@@ -182,7 +182,7 @@ usadas:
 | `language` | `pt` | `""` para detecção automática |
 | `initial_prompt` | `""` | Vocabulário do seu contexto. **Só lista de termos, nunca prosa** |
 | `nivel_fala` | `0.010` | Abaixo disso é som de fundo. Use a calibração em vez de chutar |
-| `partial_interval` | `0.45` | Segundos entre as retranscrições do trecho aberto |
+| `partial_interval` | `0.3` | Segundos entre as retranscrições do trecho aberto |
 | `silence_ms` | `700` | Silêncio que fecha um trecho |
 | `insercao_ao_vivo` | `true` | `false` = só entrega tudo no fim |
 | `action_on_stop` | `paste` | `paste`, `type`, `clipboard` ou `webhook` |
@@ -204,7 +204,8 @@ Medidos numa RTX 4060 com `large-v3-turbo` em float16.
 | esperando o silêncio fechar a frase | 8,0 s | — |
 | prefixo estável, `partial_interval` 0,6 s | 3,6 s | 2,7 s |
 | + comparação sem pontuação | 2,7 s | 1,8 s |
-| **+ `partial_interval` 0,45 s** | **2,4 s** | **1,5 s** |
+| + `partial_interval` 0,45 s | 2,4 s | 1,5 s |
+| **+ só o texto novo comparado, `partial_interval` 0,3 s** | — | **1,2 s** |
 
 **Cadência da escrita**, mesmo áudio de 20 s, amostrando o campo a cada 50 ms:
 

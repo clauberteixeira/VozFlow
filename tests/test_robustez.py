@@ -41,9 +41,9 @@ def test_tipo_errado_volta_ao_padrao_so_naquela_chave(pasta_config):
 
 
 def test_microfone_aceita_nome_ou_nenhum(pasta_config):
-    config.CONFIG_PATH.write_text(json.dumps({"input_device": "Headset"}), encoding="utf-8")
+    config.CONFIG_PATH.write_text(json.dumps({"input_device": "Headset", "config_versao": 3}), encoding="utf-8")
     assert config.load()["input_device"] == "Headset"
-    config.CONFIG_PATH.write_text(json.dumps({"input_device": [1]}), encoding="utf-8")
+    config.CONFIG_PATH.write_text(json.dumps({"input_device": [1], "config_versao": 3}), encoding="utf-8")
     assert config.load()["input_device"] is None
 
 
@@ -117,7 +117,7 @@ def dialogo(qapp, pasta_config, monkeypatch):
         def drain(self): return audio.np.empty(0, dtype="float32")
 
     monkeypatch.setattr(configuracoes, "Recorder", RecorderFalso)
-    monkeypatch.setattr(configuracoes, "entradas_para_menu", lambda: [])
+    monkeypatch.setattr(configuracoes, "nome_do_padrao", lambda: None)
     cfg = config.Config(dict(config.DEFAULTS))
     dlg = configuracoes.JanelaConfiguracoes(cfg)
     dlg.abertos = abertos

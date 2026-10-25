@@ -86,9 +86,10 @@ O problema de escrever ao vivo é que o Whisper muda de ideia: a transcrição d
 cada palpite e depois apagar.
 
 A solução aqui é **prefixo estável**. O trecho aberto é retranscrito a cada
-`partial_interval` segundos. Uma palavra que sobreviveu igual a duas
-transcrições seguidas é considerada firme e vai para o campo; a última palavra
-firme fica retida, porque ela ainda costuma mudar quando chega mais áudio.
+`partial_interval` segundos. Uma palavra nova que sobreviveu igual a duas
+transcrições seguidas é considerada firme e vai para o campo; só a última
+palavra da transcrição fica retida, porque ela ainda costuma mudar quando
+chega mais áudio.
 Nada é escrito duas vezes e nada precisa ser apagado.
 
 Se preferir o comportamento antigo (nada aparece até você encerrar, aí cola
@@ -156,9 +157,10 @@ demais."*
 
 **Limite honesto:** isso é um corte por nível, não separação de vozes. Alguém
 falando alto e perto do seu microfone passa. Para um filtro de verdade, se
-você tem placa NVIDIA use o **NVIDIA Broadcast** — selecione a entrada
-"Microfone (NVIDIA Broadcast)" em Configurações → Microfone e ele aplica
-remoção de ruído e de vozes de fundo por IA antes do áudio chegar aqui.
+você tem placa NVIDIA use o **NVIDIA Broadcast** — defina "Microfone (NVIDIA
+Broadcast)" como microfone padrão do Windows (Configurações → Microfone →
+**Trocar o microfone no Windows**) e ele aplica remoção de ruído e de vozes de
+fundo por IA antes do áudio chegar aqui.
 
 ---
 
@@ -185,7 +187,9 @@ troca de modelo pede reiniciar.
 a tecla para o VozFlow*. Clique no campo e pressione a combinação. Usar a mesma
 tecla em começar e encerrar vira um atalho único que alterna.
 
-**Microfone** — escolha da entrada, **medidor de nível ao vivo** (você vê na
+**Microfone** — o VozFlow usa sempre o **microfone padrão do Windows** e
+mostra qual é; para trocar, o botão **Trocar o microfone no Windows** abre as
+configurações de som. Tem também o **medidor de nível ao vivo** (você vê na
 hora se o microfone está te captando) e o botão **Calibrar com a minha voz**,
 que mede seu ambiente e sua voz e ajusta o corte de voz de fundo.
 

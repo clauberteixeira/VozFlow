@@ -59,7 +59,7 @@ def test_falha_no_replace_nao_deixa_tmp(pasta_config, monkeypatch):
 def test_salvar_configuracoes_com_arquivo_travado_avisa_e_nao_fecha(qapp, pasta_config, monkeypatch):
     from vozflow import configuracoes
 
-    monkeypatch.setattr(configuracoes, "entradas_para_menu", lambda: [])
+    monkeypatch.setattr(configuracoes, "nome_do_padrao", lambda: None)
     dlg = configuracoes.JanelaConfiguracoes(config.Config(dict(config.DEFAULTS)))
     antes = dict(dlg.cfg)
 
