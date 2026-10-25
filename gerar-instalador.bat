@@ -79,7 +79,8 @@ rem  da mesma versao iria para a Release com o hash errado.
 if exist "!INST!.sha256" del "!INST!.sha256"
 rem  Fora de bloco ( ) e sem aspas internas: o cmd quebra o parser com \" la dentro.
 rem  Gravado com LF pelo proprio PowerShell: com CRLF o "sha256sum -c" recusa.
-powershell -NoProfile -Command "$f='!INST!'; $l=(Get-FileHash -Algorithm SHA256 -LiteralPath $f).Hash.ToLower() + '  ' + (Split-Path -Leaf $f) + [char]10; [IO.File]::WriteAllText((Join-Path $PWD ($f + '.sha256')), $l)"
+rem  $ErrorActionPreference=Stop: sem ele, um hash que falha grava .sha256 vazio com saida 0.
+powershell -NoProfile -Command "$ErrorActionPreference='Stop'; $f='!INST!'; $l=(Get-FileHash -Algorithm SHA256 -LiteralPath $f).Hash.ToLower() + '  ' + (Split-Path -Leaf $f) + [char]10; [IO.File]::WriteAllText((Join-Path $PWD ($f + '.sha256')), $l)"
 if errorlevel 1 (
     echo [ERRO] Nao consegui calcular o SHA-256 do instalador.
     pause

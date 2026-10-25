@@ -996,7 +996,10 @@ class VozFlow(QtCore.QObject):
             try:
                 texto = config.LOG_PATH.read_bytes().decode("utf-8-sig")
             except UnicodeDecodeError:
-                return      # salvo a mao em outra codificacao: nao reescreve
+                # salvo a mao em outra codificacao: nao reescreve - e nao tenta
+                # de novo a cada ditada ate o arquivo crescer 10%
+                self._historico_podado = tamanho
+                return
             manter, guardar = [], True
             for linha in texto.splitlines(keepends=True):
                 m = _CARIMBO.match(linha)
