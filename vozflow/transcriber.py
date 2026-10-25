@@ -605,6 +605,10 @@ class LiveTranscriber(QtCore.QThread):
         self._had_speech = False
         self._partial = ""
         texto = self._transcrever(audio, final=True)
+        # Depois da final DESTE trecho (que ainda usa as notas): o proximo trecho
+        # comeca do zero no buffer, e reaproveitar as notas pelas mesmas posicoes
+        # cortava palavras suas onde o trecho anterior teve conversa de fundo.
+        self._notas_janela = {}
         if texto:
             self._committed.append(texto)
         self._emitir_resto(texto or "")

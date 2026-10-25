@@ -171,6 +171,25 @@ def test_cache_zera_no_proximo_trecho(motor):
     assert not motor._notas_janela
 
 
+def test_segundo_trecho_nao_herda_as_notas_do_primeiro(motor):
+    """Revisao: o trecho 2 (so voce) saia cortado nas posicoes em que o trecho 1
+    teve conversa de fundo, porque o cache nao era zerado ao fechar o trecho."""
+    recebido = []
+
+    class ModeloFalso:
+        def transcribe(self, audio, **_k):
+            recebido.append(audio)
+            return [], None
+
+    motor._model = ModeloFalso()
+    motor._buf = np.concatenate([_fala(0.05, 2), _fala(0.02, 3), _fala(0.05, 2)])
+    motor._fechar_trecho()                                   # trecho 1: corta o fundo
+    assert np.abs(recebido[-1][int(2.6 * SR): int(4.4 * SR)]).max() == 0
+    motor._buf = _fala(0.05, 7)                              # trecho 2: so voce
+    motor._fechar_trecho()
+    assert np.abs(recebido[-1][int(2.6 * SR): int(4.4 * SR)]).max() > 0.04
+
+
 def test_transcrever_usa_o_audio_filtrado(motor):
     recebido = []
 
