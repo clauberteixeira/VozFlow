@@ -240,3 +240,28 @@ def test_esquecer_na_tela_apaga_e_desliga(qapp, pasta_config, monkeypatch):
     assert voz.carregar_impressao() is None
     assert not dlg.chk_so_minha_voz.isChecked() and not dlg.chk_so_minha_voz.isEnabled()
     dlg.deleteLater()
+
+
+def test_gravar_a_voz_conta_o_microfone_aberto(monkeypatch):
+    """Revisao: 25 s de stream cru deixavam reiniciar o PortAudio por baixo."""
+    from vozflow import audio
+
+    visto = []
+
+    class StreamFalso:
+        def __init__(self, **_k):
+            visto.append(audio._abertos)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_a):
+            return False
+
+    monkeypatch.setattr(audio, "_abertos", 0)
+    monkeypatch.setattr(audio.sd, "InputStream", StreamFalso)
+    monkeypatch.setattr(audio, "atualizar_lista_dispositivos", lambda: True)
+    import time
+    monkeypatch.setattr(time, "sleep", lambda _s: None)
+    voz.gravar(None, 0)
+    assert visto == [1] and audio._abertos == 0

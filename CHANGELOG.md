@@ -7,14 +7,20 @@ Versionamento [semântico](https://semver.org/lang/pt-BR/).
 
 ## [Não lançado]
 
-### Novo — reconhecer só a sua voz
+### Experimental — reconhecer só a sua voz (desligado por padrão)
 
-- Grave 25 s da sua voz em Configurações → Microfone e o VozFlow passa a
-  ignorar quem conversa ao fundo **nas suas pausas** (vídeo, TV, alguém perto).
-  Medido: a frase da outra pessoa some do texto e as suas ficam intactas.
-  Duas vozes ao mesmo tempo não são separadas — e o filtro não estraga a sua.
-- Desligado por padrão; a impressão da voz fica só no computador e pode ser
-  apagada. Modelo de 26 MB baixado uma vez, conferido por hash.
+- Grave 25 s da sua voz em Configurações → Microfone e o VozFlow tenta
+  ignorar quem conversa ao fundo **nas suas pausas**. Com vozes sintéticas a
+  frase da outra pessoa sumiu do texto; **com a voz e o microfone reais do
+  primeiro teste, a separação não foi confiável** (o fundo chegava quase tão
+  alto quanto a voz). Por isso fica desligado e fora das versões publicadas
+  até ser validado.
+- A impressão da voz fica só no computador e pode ser apagada. Modelo de 26 MB
+  baixado uma vez, conferido por hash.
+
+---
+
+## [1.2.1] — 2026-10-24
 
 ### Corrigido
 
@@ -220,5 +226,6 @@ para entender como o app chegou ao estado atual.
 
 ---
 
+[1.2.1]: https://github.com/clauberteixeira/VozFlow/releases/tag/v1.2.1
 [1.2.0]: https://github.com/clauberteixeira/VozFlow/releases/tag/v1.2.0
 [1.1.1]: https://github.com/clauberteixeira/VozFlow/releases/tag/v1.1.1

@@ -11,17 +11,20 @@ import time
 
 import numpy as np
 
-from .audio import BLOCK, SAMPLE_RATE, resolver_dispositivo
+from .audio import (BLOCK, SAMPLE_RATE, atualizar_lista_dispositivos, entrada_contada,
+                    resolver_dispositivo)
 
 SEGUNDOS = 4.0
 
 
 def _medir(device, segundos: float = SEGUNDOS) -> np.ndarray:
     """Grava e devolve o nivel RMS de cada bloco de 100 ms."""
-    import sounddevice as sd
-
+    if not device:
+        # automatico: mede o microfone padrao do Windows de agora, o mesmo que a
+        # ditada vai usar (um fone ligado depois do app abrir tambem conta)
+        atualizar_lista_dispositivos()
     blocos: list[np.ndarray] = []
-    with sd.InputStream(
+    with entrada_contada(
         samplerate=SAMPLE_RATE, blocksize=BLOCK, channels=1, dtype="float32",
         device=resolver_dispositivo(device),
         callback=lambda i, f, t, s: blocos.append(i[:, 0].copy()),

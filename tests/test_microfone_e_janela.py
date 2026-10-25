@@ -86,6 +86,9 @@ class User32Falso:
     def IsIconic(self, hwnd):
         return 0
 
+    def IsHungAppWindow(self, hwnd):
+        return 0
+
     def ShowWindow(self, hwnd, modo):
         self.chamadas.append(("show", hwnd, modo))
 
@@ -135,3 +138,129 @@ def test_configuracoes_pedem_para_vir_para_a_frente_ao_abrir(qapp, pasta_config,
     assert pedidos[-1] == int(dlg.winId())
     dlg.done(0)
     dlg.deleteLater()
+
+
+# ----------------------------------------------------------------------
+# revisao: reiniciar o PortAudio nunca com microfone aberto
+# ----------------------------------------------------------------------
+def test_calibracao_conta_o_microfone_aberto(monkeypatch):
+    """Sem contar, uma ditada iniciada pela bandeja durante a calibracao
+    reiniciava o PortAudio com o stream vivo - o que derruba o processo."""
+    from vozflow import calibracao
+
+    visto = []
+
+    class StreamFalso:
+        def __init__(self, **_k):
+            visto.append(audio._abertos)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_a):
+            return False
+
+    monkeypatch.setattr(audio, "_abertos", 0)
+    monkeypatch.setattr(audio.sd, "InputStream", StreamFalso)
+    monkeypatch.setattr(calibracao.time, "sleep", lambda _s: None)
+    calibracao._medir(None, segundos=0)
+    assert visto == [1]
+    assert audio._abertos == 0
+
+
+def test_microfone_conta_antes_de_abrir_e_desconta_se_falhar(monkeypatch):
+    visto = []
+
+    class StreamQueFalha:
+        def __init__(self, **_k):
+            visto.append(audio._abertos)
+            raise audio.sd.PortAudioError("dispositivo ocupado")
+
+    monkeypatch.setattr(audio, "_abertos", 0)
+    monkeypatch.setattr(audio.sd, "InputStream", StreamQueFalha)
+    monkeypatch.setattr(audio, "atualizar_lista_dispositivos", lambda: True)
+    with pytest.raises(audio.sd.PortAudioError):
+        audio.Recorder(device=None).start()
+    assert visto == [1]
+    assert audio._abertos == 0
+
+
+def test_automatico_nao_reinicia_o_portaudio_com_outro_microfone_aberto(monkeypatch):
+    reinicios = []
+    monkeypatch.setattr(audio, "_abertos", 1)          # calibracao gravando
+    monkeypatch.setattr(audio.sd, "_terminate", lambda: reinicios.append(1))
+    assert audio.atualizar_lista_dispositivos() is False
+    assert reinicios == []
+
+
+def test_janela_da_frente_travada_nao_e_anexada(monkeypatch):
+    """AttachThreadInput com uma janela que nao responde pode travar a nossa."""
+    u = User32Falso()
+    u.IsHungAppWindow = lambda hwnd: 1
+    monkeypatch.setattr(janela, "_u32", u)
+    monkeypatch.setattr(janela, "_k32", Kernel32Falso())
+    janela.trazer_para_frente(0x600)
+    assert not [c for c in u.chamadas if c[0] == "attach"]
+    assert ("foreground", 0x600) in u.chamadas
+
+
+def test_stream_que_abre_mas_nao_inicia_e_fechado(monkeypatch):
+    fechados = []
+
+    class StreamQueNaoInicia:
+        def __init__(self, **_k):
+            pass
+
+        def start(self):
+            raise audio.sd.PortAudioError("falhou ao iniciar")
+
+        def close(self):
+            fechados.append(True)
+
+    monkeypatch.setattr(audio, "_abertos", 0)
+    monkeypatch.setattr(audio.sd, "InputStream", StreamQueNaoInicia)
+    monkeypatch.setattr(audio, "atualizar_lista_dispositivos", lambda: True)
+    rec = audio.Recorder(device=None)
+    with pytest.raises(audio.sd.PortAudioError):
+        rec.start()
+    assert fechados == [True] and rec._stream is None and audio._abertos == 0
+
+
+def test_salvo_falha_padrao_abre_e_stop_zera_a_conta(portaudio, monkeypatch):
+    abertos = []
+
+    class StreamSoPadrao:
+        def __init__(self, device=None, **_k):
+            if device is not None:
+                raise audio.sd.PortAudioError("ocupado por outro programa")
+            abertos.append(device)
+
+        def start(self): pass
+        def stop(self): pass
+        def close(self): pass
+
+    monkeypatch.setattr(audio.sd, "InputStream", StreamSoPadrao)
+    rec = audio.Recorder(device="Microfone (H510-PRO USB Gaming Headset)")
+    rec.start()
+    assert abertos == [None] and "padrao do Windows" in rec.aviso and audio._abertos == 1
+    rec.stop()
+    rec.stop()
+    assert audio._abertos == 0
+
+
+def test_calibracao_no_automatico_usa_o_padrao_atual(monkeypatch):
+    from vozflow import calibracao
+
+    chamadas = []
+
+    class StreamFalso:
+        def __init__(self, **_k): pass
+        def __enter__(self): return self
+        def __exit__(self, *_a): return False
+
+    monkeypatch.setattr(audio, "_abertos", 0)
+    monkeypatch.setattr(audio.sd, "InputStream", StreamFalso)
+    monkeypatch.setattr(calibracao, "atualizar_lista_dispositivos", lambda: chamadas.append(1) or True)
+    monkeypatch.setattr(calibracao.time, "sleep", lambda _s: None)
+    calibracao._medir(None, segundos=0)
+    assert chamadas == [1]

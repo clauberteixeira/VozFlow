@@ -190,12 +190,14 @@ def gravar(dispositivo, segundos: float) -> np.ndarray:
     """Grava `segundos` do microfone escolhido (o mesmo que a ditada usa)."""
     import time
 
-    import sounddevice as sd
+    from .audio import atualizar_lista_dispositivos, entrada_contada, resolver_dispositivo
 
-    from .audio import resolver_dispositivo
-
+    if not dispositivo:
+        atualizar_lista_dispositivos()   # automatico: o padrao do Windows de agora
     blocos: list[np.ndarray] = []
-    with sd.InputStream(samplerate=SR, blocksize=SR // 10, channels=1, dtype="float32",
+    # contada como microfone aberto: 25 s em que uma ditada iniciada pela
+    # bandeja nao pode reiniciar o PortAudio (derrubaria o processo)
+    with entrada_contada(samplerate=SR, blocksize=SR // 10, channels=1, dtype="float32",
                         device=resolver_dispositivo(dispositivo),
                         callback=lambda i, f, t, st: blocos.append(i[:, 0].copy())):
         time.sleep(segundos)

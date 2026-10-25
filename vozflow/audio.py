@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import queue
 import re
 import threading
@@ -50,6 +51,22 @@ def atualizar_lista_dispositivos() -> bool:
             return True
         except Exception:  # noqa: BLE001
             return False
+
+
+@contextlib.contextmanager
+def entrada_contada(**kw):
+    """sd.InputStream que conta como microfone aberto enquanto vive.
+
+    Gravacoes fora do Recorder (a calibracao) tambem precisam entrar na conta:
+    sem isso, uma ditada iniciada pela bandeja durante a calibracao reiniciava
+    o PortAudio com este stream vivo - o que derruba o processo.
+    """
+    _contar(+1)
+    try:
+        with sd.InputStream(**kw) as stream:
+            yield stream
+    finally:
+        _contar(-1)
 
 
 def _entradas() -> list[tuple[int, dict]]:
@@ -151,18 +168,30 @@ class Recorder:
             if indice is None and self.device:
                 self.aviso = ("Microfone salvo nao esta conectado; gravando "
                               "pelo padrao do Windows.")
-            try:
-                self._stream = self._abrir(indice)
-            except Exception:  # noqa: BLE001
-                if indice is None:
-                    raise
-                # Aparelho ocupado por outro programa ou recem-desconectado:
-                # melhor ditar pelo padrao do Windows do que nao ditar.
-                self._stream = self._abrir(None)
-                self.aviso = ("Nao consegui abrir o microfone salvo; gravando "
-                              "pelo padrao do Windows.")
-            self._stream.start()
+            # Conta ANTES de abrir: entre abrir e contar, outra thread podia
+            # reiniciar o PortAudio achando que nao havia microfone aberto.
             _contar(+1)
+            try:
+                try:
+                    self._stream = self._abrir(indice)
+                except Exception:  # noqa: BLE001
+                    if indice is None:
+                        raise
+                    # Aparelho ocupado por outro programa ou recem-desconectado:
+                    # melhor ditar pelo padrao do Windows do que nao ditar.
+                    self._stream = self._abrir(None)
+                    self.aviso = ("Nao consegui abrir o microfone salvo; gravando "
+                                  "pelo padrao do Windows.")
+                self._stream.start()
+            except Exception:
+                if self._stream is not None:
+                    try:
+                        self._stream.close()   # abriu mas nao iniciou: nao deixa vivo
+                    except Exception:  # noqa: BLE001
+                        pass
+                self._stream = None
+                _contar(-1)
+                raise
 
     def _abrir(self, indice: int | None) -> sd.InputStream:
         return sd.InputStream(

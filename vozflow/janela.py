@@ -126,17 +126,22 @@ def trazer_para_frente(hwnd: int) -> bool:
         meu = _k32.GetCurrentThreadId()
         frente = _u32.GetForegroundWindow()
         dele = _u32.GetWindowThreadProcessId(frente, None) if frente else 0
-        anexado = bool(dele and dele != meu and _u32.AttachThreadInput(meu, dele, True))
+        # Janela da frente travada (nao responde): anexar a fila dela pode
+        # travar a nossa tambem. Sem anexar, no pior caso a janela pisca na
+        # barra de tarefas - como era antes.
+        travada = bool(frente and _u32.IsHungAppWindow(frente))
+        anexado = bool(dele and dele != meu and not travada
+                       and _u32.AttachThreadInput(meu, dele, True))
         try:
             _u32.BringWindowToTop(hwnd)
-            _u32.SetForegroundWindow(hwnd)
+            ok = bool(_u32.SetForegroundWindow(hwnd))
             _u32.SetActiveWindow(hwnd)
         finally:
             if anexado:
                 _u32.AttachThreadInput(meu, dele, False)
     except Exception:  # noqa: BLE001
         return False
-    return True
+    return ok
 
 
 def titulo(hwnd: int) -> str:
