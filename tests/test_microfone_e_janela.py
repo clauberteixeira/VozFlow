@@ -202,3 +202,65 @@ def test_janela_da_frente_travada_nao_e_anexada(monkeypatch):
     janela.trazer_para_frente(0x600)
     assert not [c for c in u.chamadas if c[0] == "attach"]
     assert ("foreground", 0x600) in u.chamadas
+
+
+def test_stream_que_abre_mas_nao_inicia_e_fechado(monkeypatch):
+    fechados = []
+
+    class StreamQueNaoInicia:
+        def __init__(self, **_k):
+            pass
+
+        def start(self):
+            raise audio.sd.PortAudioError("falhou ao iniciar")
+
+        def close(self):
+            fechados.append(True)
+
+    monkeypatch.setattr(audio, "_abertos", 0)
+    monkeypatch.setattr(audio.sd, "InputStream", StreamQueNaoInicia)
+    monkeypatch.setattr(audio, "atualizar_lista_dispositivos", lambda: True)
+    rec = audio.Recorder(device=None)
+    with pytest.raises(audio.sd.PortAudioError):
+        rec.start()
+    assert fechados == [True] and rec._stream is None and audio._abertos == 0
+
+
+def test_salvo_falha_padrao_abre_e_stop_zera_a_conta(portaudio, monkeypatch):
+    abertos = []
+
+    class StreamSoPadrao:
+        def __init__(self, device=None, **_k):
+            if device is not None:
+                raise audio.sd.PortAudioError("ocupado por outro programa")
+            abertos.append(device)
+
+        def start(self): pass
+        def stop(self): pass
+        def close(self): pass
+
+    monkeypatch.setattr(audio.sd, "InputStream", StreamSoPadrao)
+    rec = audio.Recorder(device="Microfone (H510-PRO USB Gaming Headset)")
+    rec.start()
+    assert abertos == [None] and "padrao do Windows" in rec.aviso and audio._abertos == 1
+    rec.stop()
+    rec.stop()
+    assert audio._abertos == 0
+
+
+def test_calibracao_no_automatico_usa_o_padrao_atual(monkeypatch):
+    from vozflow import calibracao
+
+    chamadas = []
+
+    class StreamFalso:
+        def __init__(self, **_k): pass
+        def __enter__(self): return self
+        def __exit__(self, *_a): return False
+
+    monkeypatch.setattr(audio, "_abertos", 0)
+    monkeypatch.setattr(audio.sd, "InputStream", StreamFalso)
+    monkeypatch.setattr(calibracao, "atualizar_lista_dispositivos", lambda: chamadas.append(1) or True)
+    monkeypatch.setattr(calibracao.time, "sleep", lambda _s: None)
+    calibracao._medir(None, segundos=0)
+    assert chamadas == [1]

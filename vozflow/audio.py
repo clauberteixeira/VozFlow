@@ -184,6 +184,11 @@ class Recorder:
                                   "pelo padrao do Windows.")
                 self._stream.start()
             except Exception:
+                if self._stream is not None:
+                    try:
+                        self._stream.close()   # abriu mas nao iniciou: nao deixa vivo
+                    except Exception:  # noqa: BLE001
+                        pass
                 self._stream = None
                 _contar(-1)
                 raise
