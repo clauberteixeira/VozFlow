@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <img alt="versão" src="https://img.shields.io/badge/vers%C3%A3o-1.2.4-2ea44f">
+  <img alt="versão" src="https://img.shields.io/badge/vers%C3%A3o-1.2.5-2ea44f">
   <img alt="plataforma" src="https://img.shields.io/badge/plataforma-Windows%2010%2F11-0078d4">
   <img alt="python" src="https://img.shields.io/badge/python-3.12-3776ab">
   <img alt="offline" src="https://img.shields.io/badge/100%25-offline-8a2be2">
@@ -188,6 +188,7 @@ já remove vozes de fundo antes do áudio chegar ao VozFlow.
 | **1.2.2** | Escrita mais fluida: a 1ª palavra caiu de 2,5 s para 1,6 s e o atraso típico de 3,5 s para 2,5 s, medidos com voz real |
 | **1.2.3** | Tela de atalhos grava só a tecla apertada; tecla "presa" no Windows não trava mais os atalhos |
 | **1.2.4** | Atualização automática com assinatura digital |
+| **1.2.5** | Menu da bandeja só com o essencial; o estado aparece passando o mouse no ícone |
 
 Cada mudança passou por testes automáticos (308 hoje, todos sem microfone,
 teclado ou internet reais) e por revisão independente antes de sair.
