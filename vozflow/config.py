@@ -153,7 +153,10 @@ class Config(dict):
                 os.fsync(fh.fileno())
             os.replace(tmp, CONFIG_PATH)
         except OSError:
-            tmp.unlink(missing_ok=True)   # sem sobra de config.json.tmp
+            try:
+                tmp.unlink(missing_ok=True)   # sem sobra de config.json.tmp
+            except OSError:
+                pass                          # nao esconder o erro original
             raise
 
 

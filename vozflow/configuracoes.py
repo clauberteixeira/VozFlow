@@ -554,8 +554,9 @@ class JanelaConfiguracoes(QtWidgets.QDialog):
         except OSError as exc:
             # Arquivo travado (antivirus, sincronizacao de nuvem): antes a
             # excecao escapava do slot e o dialogo ficava aberto sem explicacao.
-            # Volta a cfg em memoria para nao valer algo que nao foi salvo.
-            self.cfg.clear()
+            # Volta a cfg em memoria para nao valer algo que nao foi salvo. Sem
+            # clear(): o motor le esta mesma cfg em outra thread, e as chaves
+            # aqui sao sempre as mesmas.
             self.cfg.update(antes)
             self.aviso.setStyleSheet("color:#c0392b;")
             self.aviso.setText("Nao consegui gravar o config.json (" + str(exc)
