@@ -197,24 +197,25 @@ palavras.
 
 | Arquivo | Linhas | Papel |
 |---|---:|---|
-| `main.py` | 57 | Ponto de entrada. Mutex de instância única, checa a bandeja. |
+| `main.py` | 69 | Ponto de entrada. Mutex de instância única, checa a bandeja. |
 | `vozflow/__init__.py` | 16 | Versão, nome do app e `HF_HUB_DISABLE_XET` (antes de qualquer import do `huggingface_hub`). |
-| `vozflow/app.py` | 853 | Bandeja, atalhos globais, orquestração, sons. |
-| `vozflow/configuracoes.py` | 540 | Janela única de ajustes, com medidor ao vivo. |
-| `vozflow/transcriber.py` | 458 | Motor: thread própria, trechos, prévias, Whisper. |
-| `vozflow/audio.py` | 274 | Captura, VAD, resolução do microfone. |
+| `vozflow/app.py` | 987 | Bandeja, atalhos globais, orquestração, sons. |
+| `vozflow/configuracoes.py` | 555 | Janela única de ajustes, com medidor ao vivo. |
+| `vozflow/transcriber.py` | 533 | Motor: thread própria, trechos, prévias, Whisper. |
+| `vozflow/audio.py` | 298 | Captura, VAD, resolução do microfone. |
 | `vozflow/atalhos.py` | 235 | Captura e validação de combinações de teclas. |
 | `vozflow/overlay.py` | 226 | Janela flutuante que nunca rouba o foco. |
-| `vozflow/calibracao.py` | 172 | Mede ambiente e voz, calcula o limiar. |
-| `vozflow/modelo.py` | 138 | Download do modelo com progresso visível. |
-| `vozflow/config.py` | 137 | `config.json`, padrões e migrações. |
-| `vozflow/janela.py` | 133 | Prende a escrita na janela onde a ditada começou. |
-| `vozflow/inserter.py` | 123 | Colar, digitar, copiar ou mandar por webhook. |
+| `vozflow/calibracao.py` | 54 | Mede ambiente e voz, calcula o limiar (usado pela aba Microfone). |
+| `vozflow/modelo.py` | 137 | Download do modelo com progresso visível. |
+| `vozflow/config.py` | 203 | `config.json`, padrões e migrações. |
+| `vozflow/janela.py` | 169 | Prende a escrita na janela onde a ditada começou. |
+| `vozflow/inserter.py` | 137 | Colar, digitar, copiar ou mandar por webhook. |
 | `vozflow/texto.py` | 82 | Anti-repetição e anti-eco do prompt. |
 | `vozflow/diagnostico.py` | 64 | `python -m vozflow.diagnostico`. |
 | `hooks/hook-webrtcvad.py` | 11 | Hook do PyInstaller que sobrepõe o oficial. |
+| `tests/` | 1474 | Suíte pytest com dublês de teclado, clipboard, janela e motor (ver CONTRIBUTING). |
 
-Cerca de **3.500 linhas de Python**.
+Cerca de **3.800 linhas de Python** no app, mais 1.500 de testes.
 
 ---
 

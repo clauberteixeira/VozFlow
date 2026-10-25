@@ -5,6 +5,59 @@ Versionamento [semântico](https://semver.org/lang/pt-BR/).
 
 ---
 
+## [Não lançado]
+
+Correções vindas de uma auditoria do código. Nenhuma muda o visual nem os
+padrões de configuração.
+
+### Corrigido — texto na janela certa
+
+- Uma ditada nova logo depois de encerrar outra podia levar o **fim da
+  anterior para a janela nova**, com a regra de Enter da nova. Agora o atalho
+  espera a entrega terminar (*"Terminando de entregar a ditada anterior..."*).
+- **Cancelar** não descartava o texto que ainda esperava o foco voltar: ele
+  saía depois, às vezes na ditada seguinte.
+- Um erro de transcrição no meio da fala (ex.: GPU sem memória) deixava o
+  **microfone gravando** e o texto saindo, com encerrar/cancelar ignorados.
+- Ditada iniciada pelo **ícone da bandeja** travava na barra de tarefas;
+  agora trava na janela em que você clicar.
+- O fim de cada trecho podia sair com palavras **repetidas ou faltando**
+  quando a versão final mudava uma palavra já escrita.
+
+### Corrigido — área de transferência
+
+- **"Só copiar"** não funcionava quando já havia algo copiado.
+- No modo colar, o conteúdo anterior podia ser devolvido **antes** do `Ctrl+V`
+  ser lido, colando o que estava copiado antes (uma senha, por exemplo).
+- O VozFlow não mexe mais no que você copiar durante a ditada, nem tira a
+  formatação do que já estava copiado no modo ao vivo.
+- Em falha (webhook fora do ar, janela que não voltou), o texto agora é
+  **mesmo** copiado — antes a mensagem dizia isso sem ter copiado.
+- Webhook e "Só copiar" não dependem mais de a janela original voltar ao foco.
+
+### Corrigido — robustez
+
+- `config.json` editado à mão com valor de tipo errado fazia o app não abrir
+  ou parar de transcrever calado; agora só aquela chave volta ao padrão.
+  Arquivo travado no boot não é mais sobrescrito com os padrões.
+- O motor sobrevive a erros inesperados (ex.: fone Bluetooth caindo no meio
+  da gravação) em vez de ficar "Pronto" sem transcrever.
+- Microfone renomeado pelo Windows ao trocar de porta USB ("(2- …)") volta a
+  ser reconhecido.
+- Cancelar as Configurações desfaz a calibração; fechar no meio dela não deixa
+  mais o microfone aberto.
+- Sair durante o download do modelo não derruba mais o processo.
+
+### Segurança e build
+
+- Pisos de `certifi` (raiz emSign comprometida removida), `urllib3`,
+  `requests` e `filelock` acima das versões com vulnerabilidades conhecidas.
+- Build reprodutível: `requirements-lock.txt` com hashes e PyInstaller em
+  versão fixa.
+- Suíte de testes automatizados (`pytest`) e CI no Windows.
+
+---
+
 ## [1.1.1] — 2025-08-28
 
 Primeira versão publicada no GitHub. As versões anteriores circularam apenas
