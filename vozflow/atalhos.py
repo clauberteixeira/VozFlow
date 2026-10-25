@@ -28,7 +28,7 @@ NAVEGACAO = {
 }
 
 BONITO = {
-    "ctrl": "Ctrl", "alt": "Alt", "shift": "Shift", "windows": "Win",
+    "ctrl": "Ctrl", "alt": "Alt", "shift": "Shift", "windows": "Win", "alt gr": "AltGr",
     "esc": "Esc", "enter": "Enter", "space": "Espaco", "tab": "Tab",
     "page up": "PgUp", "page down": "PgDn", "caps lock": "CapsLock",
 }
