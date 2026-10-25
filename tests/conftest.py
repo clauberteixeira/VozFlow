@@ -62,11 +62,12 @@ def timers_terminam_dentro_do_teste(monkeypatch):
 def sem_rede(monkeypatch):
     """Nenhum teste fala com a internet. O atualizador consulta o GitHub: um
     teste que esquecesse de trocar a consulta por um duble acessava a API de
-    verdade (aconteceu) - agora falha na hora."""
+    verdade (aconteceu) - agora falha na hora. pytest.fail e BaseException:
+    o `except Exception` do atualizador nao consegue engolir."""
     import socket
 
     def bloqueada(*_a, **_k):
-        raise AssertionError("teste tentou acessar a rede")
+        pytest.fail("teste tentou acessar a rede")
 
     monkeypatch.setattr(socket.socket, "connect", bloqueada)
     monkeypatch.setattr(socket, "create_connection", bloqueada)

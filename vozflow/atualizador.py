@@ -198,14 +198,14 @@ def ler_estado(pasta: Path = PASTA) -> dict | None:
     """O estado salvo; {} se ainda nao existe; None se existe mas nao deu para
     ler (travado no boot) - ai quem chamou nao deve regravar por cima."""
     try:
-        texto = (pasta / "estado.json").read_text(encoding="utf-8")
+        bruto = (pasta / "estado.json").read_bytes()
     except FileNotFoundError:
         return {}
     except OSError:
         return None
     try:
-        dados = json.loads(texto)
-    except ValueError:
+        dados = json.loads(bruto.decode("utf-8"))
+    except ValueError:                 # inclui UnicodeDecodeError
         return {}                      # corrompido: recomecar e o melhor
     return dados if isinstance(dados, dict) else {}
 
@@ -387,6 +387,10 @@ class Atualizador(QtCore.QObject):
             self._resultado.emit(f"Nao consegui procurar atualizacao ({exc}).", pedido)
 
     def _ao_resultado(self, msg: str, pedido: bool) -> None:
+        # A procura terminou sem nada para instalar: o pedido do menu acabou
+        # aqui e nao vale para a proxima automatica.
+        if not self.pendente:
+            self._imediato = False
         if pedido:
             self.aviso.emit(msg)
 

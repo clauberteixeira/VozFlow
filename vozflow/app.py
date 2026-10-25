@@ -320,7 +320,11 @@ class VozFlow(QtCore.QObject):
 
     def _avisar_se_atualizou(self) -> None:
         """Abertura depois de atualizar (ou de uma atualizacao que falhou)."""
-        msg = self.atualizador.conferir_abertura()
+        try:
+            msg = self.atualizador.conferir_abertura()
+        except Exception as exc:  # noqa: BLE001 - o atualizador nunca impede o app de abrir
+            _dbg(f"ATUALIZADOR: conferir_abertura falhou ({exc})")
+            return
         if msg:
             QtCore.QTimer.singleShot(1500, lambda: self._aviso_atualizacao(msg))
 

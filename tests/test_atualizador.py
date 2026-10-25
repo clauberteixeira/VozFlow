@@ -421,13 +421,13 @@ def test_estado_travado_nao_e_regravado(tmp_path, qapp, monkeypatch):
     "falhou" - e o app voltaria a fechar a cada minuto parado."""
     atu.gravar_estado({"vista": "0.0.1", "falhou": "99.0.0"}, tmp_path)
     antes = (tmp_path / "estado.json").read_bytes()
-    real = Path.read_text
+    real = Path.read_bytes
 
     def travado(self, *a, **k):
         if self.name == "estado.json":
             raise PermissionError("em uso")
         return real(self, *a, **k)
-    monkeypatch.setattr(Path, "read_text", travado)
+    monkeypatch.setattr(Path, "read_bytes", travado)
     assert atu.ler_estado(tmp_path) is None
     assert _atualizador(tmp_path).conferir_abertura() is None
     monkeypatch.undo()
@@ -543,3 +543,22 @@ def test_app_livre_dispara_marca_e_sai_de_vez(vozflow_app, monkeypatch):
     app._fechar_para_atualizar("9.9.9", Path("C:/x/" + NOME))
     assert [o[0] for o in ordem] == ["instalar", "marcar", "encerrar"]
     assert ordem[0][1] and ordem[2][1] is True      # passa o /VOLTAR e sai de vez
+
+
+def test_estado_com_bytes_invalidos_nao_impede_o_app_de_abrir(tmp_path, qapp):
+    (tmp_path / "estado.json").write_bytes(b"\xff\xfe{lixo")
+    assert atu.ler_estado(tmp_path) == {}
+    assert _atualizador(tmp_path).conferir_abertura() is None
+
+
+def test_procura_pelo_menu_que_terminou_sem_nada_nao_apressa_a_proxima(montar):
+    """Clicou com um download em andamento, e ele terminou sem instalador
+    (rede caiu, ja era a mais nova): o pedido acabou ali."""
+    a = montar(parado=0.0)
+    a.pendente = None
+    a._imediato = True
+    a._ao_resultado("Nao consegui procurar atualizacao (rede).", True)
+    assert a._imediato is False
+    a._ao_baixar("9.9.9", "C:/x/" + NOME, False)
+    assert a._timer_instalar.interval() == 30_000
+    a._timer_instalar.stop()
