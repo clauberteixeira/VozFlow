@@ -5,6 +5,19 @@ Versionamento [semântico](https://semver.org/lang/pt-BR/).
 
 ---
 
+## [Não lançado]
+
+### Corrigido
+
+- **Atalho gravado com uma tecla a mais.** Apertando só PgDn na tela de
+  atalhos, ela gravava "F10 + PgDn". Uma tecla cujo "soltar" o Windows perdeu
+  ficava presa na tabela da biblioteca de teclado e entrava em toda captura —
+  e também podia impedir os atalhos de disparar. Agora a captura só conta o
+  que você aperta depois de clicar no campo, e o VozFlow confere a cada 2 s,
+  no estado real do Windows, se as teclas marcadas como apertadas estão mesmo.
+
+---
+
 ## [1.2.2] — 2026-10-25
 
 ### Melhorado — texto aparece mais rápido enquanto você fala

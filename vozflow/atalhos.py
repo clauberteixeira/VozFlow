@@ -194,6 +194,73 @@ def validar(valores: dict, suprimir: bool = False) -> tuple[str, str]:
     return "", "  ".join(unicos)
 
 
+def soltar_teclas_presas(teclado=None, estado=None) -> list[int]:
+    """Tira da tabela do keyboard as teclas que o Windows diz estarem soltas.
+
+    A biblioteca keyboard guarda as teclas apertadas numa tabela que so
+    atualiza com os eventos que recebe. Se o Windows perde o "soltar" de uma
+    tecla, ela fica presa ali - e todo atalho passa a ser comparado com ela
+    junto: PgDn sozinha deixa de disparar, e um Ctrl preso trava a digitacao
+    (inserter espera os modificadores soltarem). Aqui cada tecla da tabela e
+    conferida no estado real do Windows (GetAsyncKeyState). Tecla de verdade
+    segurada que saia por engano volta no proximo evento de repeticao.
+    """
+    teclado = teclado or keyboard
+    if estado is None:
+        try:
+            import ctypes
+            u32 = ctypes.windll.user32
+        except (ImportError, AttributeError):   # fora do Windows
+            return []
+
+        def estado(sc: int) -> bool | None:
+            vk = u32.MapVirtualKeyW(sc, 1)        # MAPVK_VSC_TO_VK: Ctrl, Shift... genericos
+            return bool(u32.GetAsyncKeyState(vk) & 0x8000) if vk else None
+
+    soltas = []
+    try:
+        with teclado._pressed_events_lock:
+            for sc in list(teclado._pressed_events):
+                # scancode <= 0: tecla so com codigo virtual (multimidia) - sem como conferir
+                if sc > 0 and estado(sc) is False:
+                    del teclado._pressed_events[sc]
+                    teclado._logically_pressed_keys.pop(sc, None)
+                    teclado._listener.active_modifiers.discard(sc)
+                    soltas.append(sc)
+    except Exception:  # noqa: BLE001 - interno da biblioteca: na duvida, nao mexe
+        return soltas
+    return soltas
+
+
+def ler_combinacao(proximo_evento) -> str:
+    """A tecla apertada a partir de agora, com os modificadores segurados.
+
+    So conta o que acontece DEPOIS de comecar a captura. O read_hotkey da
+    biblioteca keyboard monta a combinacao com tudo que ela acha que esta
+    apertado, e uma tecla cujo "soltar" o Windows perdeu fica presa para
+    sempre: o usuario apertou so PgDn e a tela gravou "F10 + PgDn".
+    Modificador entra so se foi apertado agora e ainda esta segurado; a
+    combinacao fecha na primeira tecla comum. Modificador sozinho (apertou e
+    soltou) vale como esta - a validacao decide se serve.
+    """
+    segurados: list[str] = []
+    while True:
+        ev = proximo_evento()
+        nome = (ev.name or "").lower()
+        if not nome:
+            continue
+        descendo = ev.event_type == keyboard.KEY_DOWN
+        if keyboard.is_modifier(nome):
+            if descendo:
+                if nome not in segurados:
+                    segurados.append(nome)
+            elif nome in segurados:
+                return keyboard.get_hotkey_name(segurados)
+            continue
+        if descendo:
+            return keyboard.get_hotkey_name([*segurados, nome])
+
+
 class CapturaAtalho(QtWidgets.QPushButton):
     """Botao que, ao ser clicado, grava a proxima combinacao de teclas."""
 
@@ -217,13 +284,14 @@ class CapturaAtalho(QtWidgets.QPushButton):
         if self._capturando:
             return
         self._capturando = True
+        soltar_teclas_presas()
         self.setText("Pressione a combinacao...  (Esc cancela)")
         self.setStyleSheet("font-weight:bold;")
         threading.Thread(target=self._ler, daemon=True).start()
 
     def _ler(self) -> None:
         try:
-            combo = keyboard.read_hotkey(suppress=False)
+            combo = ler_combinacao(lambda: keyboard.read_event(suppress=False))
         except Exception:  # noqa: BLE001
             combo = ""
         self.capturado.emit(combo or "")

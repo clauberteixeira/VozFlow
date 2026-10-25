@@ -16,7 +16,7 @@ import keyboard
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from . import APP_NAME, __version__, config, janela
-from .atalhos import GuardaNumerico, bonito
+from .atalhos import GuardaNumerico, bonito, soltar_teclas_presas
 from .inserter import apertar_enter, copiar, digitar, entregar
 from .overlay import Overlay
 from .transcriber import LiveTranscriber
@@ -267,6 +267,12 @@ class VozFlow(QtCore.QObject):
         self._montar_tray()
         self._ligar_sinais()
         self._registrar_atalhos()
+        # Tecla "presa" na tabela do keyboard (o Windows perdeu o soltar) faz
+        # todo atalho falhar ate reiniciar o app; conferir de tempos em tempos
+        # cura sozinho. So le o estado das teclas: custo desprezivel.
+        self._faxina_teclas = QtCore.QTimer(self)
+        self._faxina_teclas.timeout.connect(soltar_teclas_presas)
+        self._faxina_teclas.start(2000)
         self.engine.start()
         if self.cfg.get("show_overlay", True):
             # roda assim que o loop do Qt comeca, com o modelo ja carregando

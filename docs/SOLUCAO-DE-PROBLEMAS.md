@@ -98,6 +98,20 @@ Três causas, nesta ordem de probabilidade:
    o idioma do teclado e ela nunca chega ao app — a tela de configurações
    recusa essa escolha justamente por isso.
 
+### Apertei uma tecla e a tela gravou outra junto ("F10 + PgDn")
+
+Uma tecla ficou **presa** na tabela da biblioteca `keyboard`: o Windows perdeu
+o evento de soltar (acontece, por exemplo, quando a tecla é solta com uma
+janela de administrador em foco). A captura antiga usava o `read_hotkey`, que
+junta tudo que a biblioteca acha que está apertado — e a mesma tecla presa
+fazia os atalhos pararem de disparar, porque eles também são comparados com a
+tabela inteira.
+
+Desde a 1.2.3 a captura só conta o que você aperta depois de clicar no campo, e
+o VozFlow confere a cada 2 s, no estado real do Windows, se as teclas da tabela
+estão mesmo apertadas. Em versões anteriores, **Sair** e abrir de novo limpa a
+tabela.
+
 ### O VozFlow liga sozinho quando eu rolo a página
 
 Você escolheu uma tecla de navegação sozinha (`PgDn`, `PgUp`, `Home`, `End`,
