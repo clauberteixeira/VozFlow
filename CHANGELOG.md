@@ -7,8 +7,30 @@ Versionamento [semântico](https://semver.org/lang/pt-BR/).
 
 ## [Não lançado]
 
-Correções vindas de uma auditoria do código. Nenhuma muda o visual nem os
-padrões de configuração.
+Correções vindas de uma auditoria do código. Nenhuma muda o visual.
+
+### Novo — roda liso com ou sem placa de vídeo
+
+- **Modelo automático** (`model: auto`, o novo padrão): `large-v3-turbo` com
+  placa NVIDIA, como antes, e `base` sem GPU. Medido numa fala de 17,6 s na
+  CPU: a primeira palavra caiu de **43,9 s para 2,8 s**, o texto passou a sair
+  **ao vivo** (antes só no fim) e o texto final ficou pronto **na hora**
+  (antes, 24 s depois de encerrar). Quem tinha o padrão antigo gravado passa
+  para `auto` sozinho; com GPU, nada muda.
+- Na CPU, as prévias não refazem mais a decodificação várias vezes (era o que
+  travava a primeira palavra); a versão final de cada trecho segue igual.
+
+### Histórico e privacidade
+
+- O histórico de ditados continua guardando tudo, mas se passar de 5 MB
+  (anos de uso) fica só com a última semana (`historico_max_mb`,
+  `historico_dias`).
+- O modo de diagnóstico (`VOZFLOW_DEBUG=1`) não grava mais o texto ditado nem
+  títulos de janela; `VOZFLOW_DEBUG=texto` inclui, quando for preciso.
+- Webhook com `http://` (sem criptografia) fora do próprio computador mostra
+  um aviso nas Configurações.
+- O instalador passa a vir acompanhado de um arquivo `.sha256` para conferir o
+  download.
 
 ### Corrigido — texto na janela certa
 
