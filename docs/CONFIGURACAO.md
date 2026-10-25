@@ -169,7 +169,7 @@ vocabulário técnico próprio:
 
   "model": "auto",
   "language": "pt",
-  "initial_prompt": "Versaty Solar, ConnectaLink, Evolution API, Laravel, kWp, boleto, CRM.",
+  "initial_prompt": "Solar Exemplo, Evolution API, Laravel, kWp, boleto, CRM.",
 
   "nivel_fala": 0.018,
   "partial_interval": 0.3,

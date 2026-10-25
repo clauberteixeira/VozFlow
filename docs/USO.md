@@ -229,7 +229,7 @@ O jeito mais eficaz é preencher `initial_prompt` (Configurações → Geral →
 Vocabulário) com os termos que você usa:
 
 ```json
-"initial_prompt": "Versaty Solar, ConnectaLink, Evolution API, Laravel, kWp, boleto, CRM."
+"initial_prompt": "Solar Exemplo, Evolution API, Laravel, kWp, boleto, CRM."
 ```
 
 **Use só uma lista de termos, nunca uma frase em prosa.** O Whisper trata o
