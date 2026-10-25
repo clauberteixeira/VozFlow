@@ -146,11 +146,15 @@ class Config(dict):
         # NTFS pode registrar o rename e perder o conteudo numa queda.
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
         tmp = CONFIG_PATH.with_name(CONFIG_PATH.name + ".tmp")
-        with open(tmp, "w", encoding="utf-8") as fh:
-            fh.write(self._texto())
-            fh.flush()
-            os.fsync(fh.fileno())
-        os.replace(tmp, CONFIG_PATH)
+        try:
+            with open(tmp, "w", encoding="utf-8") as fh:
+                fh.write(self._texto())
+                fh.flush()
+                os.fsync(fh.fileno())
+            os.replace(tmp, CONFIG_PATH)
+        except OSError:
+            tmp.unlink(missing_ok=True)   # sem sobra de config.json.tmp
+            raise
 
 
 def load() -> Config:
@@ -168,7 +172,7 @@ def load() -> Config:
     nao_regravar = False
     if CONFIG_PATH.exists():
         try:
-            em_disco = CONFIG_PATH.read_text(encoding="utf-8-sig")
+            bruto = CONFIG_PATH.read_bytes()
         except OSError as exc:
             # Arquivo travado (antivirus no boot, sincronizacao de nuvem): o
             # conteudo pode estar perfeito. Padroes so nesta sessao - regravar
@@ -177,11 +181,16 @@ def load() -> Config:
             nao_regravar = True
         else:
             try:
+                # Decodificar aqui, nao no read: UnicodeDecodeError e ValueError,
+                # nao OSError. Arquivo em UTF-16 (Out-File do PowerShell 5.1) ou
+                # ANSI cai no .bak + padroes em vez de impedir o app de abrir.
+                # open("w") grava CRLF no Windows; compara como texto
+                em_disco = bruto.decode("utf-8-sig").replace("\r\n", "\n")
                 lido = json.loads(em_disco)
                 if not isinstance(lido, dict):
                     raise ValueError("o arquivo nao e um objeto JSON")
                 data.update(lido)
-            except ValueError as exc:   # cobre o JSONDecodeError
+            except ValueError as exc:   # cobre JSONDecodeError e UnicodeDecodeError
                 print(f"[config] config.json invalido ({exc}); usando padroes")
                 em_disco = None
                 try:

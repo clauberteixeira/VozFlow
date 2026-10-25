@@ -21,17 +21,58 @@ def test_erro_de_leitura_nao_apaga_a_config_do_usuario(pasta_config, monkeypatch
     original = json.dumps({"hotkey_start": "f9"})
     caminho = config.CONFIG_PATH
     caminho.write_text(original, encoding="utf-8")
-    ler = pathlib.Path.read_text
+    ler = pathlib.Path.read_bytes
 
     def travado(self, *a, **k):
         if self == caminho:
             raise PermissionError("arquivo em uso por outro processo")
         return ler(self, *a, **k)
 
-    monkeypatch.setattr(pathlib.Path, "read_text", travado)
+    monkeypatch.setattr(pathlib.Path, "read_bytes", travado)
     cfg = config.load()
     assert cfg["hotkey_start"] == config.DEFAULTS["hotkey_start"]
-    assert caminho.read_bytes().decode("utf-8") == original   # nao regravou
+    with open(caminho, encoding="utf-8") as fh:            # nao regravou
+        assert fh.read() == original
+
+
+@pytest.mark.parametrize("bruto", [
+    '{"language": "en"}'.encode("utf-16"),          # Out-File do PowerShell 5.1
+    '{"input_device": "Microfone Fácil"}'.encode("cp1252"),   # editor em ANSI
+])
+def test_arquivo_fora_de_utf8_vira_bak_e_o_app_abre(pasta_config, bruto):
+    """Validacao final: UnicodeDecodeError nao e OSError e escapava do load()."""
+    config.CONFIG_PATH.write_bytes(bruto)
+    assert config.load() == config.DEFAULTS
+    assert config.CONFIG_PATH.with_suffix(".json.bak").read_bytes() == bruto
+
+
+def test_falha_no_replace_nao_deixa_tmp(pasta_config, monkeypatch):
+    def negado(*_a):
+        raise PermissionError("acesso negado")
+
+    monkeypatch.setattr(config.os, "replace", negado)
+    with pytest.raises(PermissionError):
+        config.Config(dict(config.DEFAULTS)).save()
+    assert not list(pasta_config.glob("*.tmp"))
+
+
+def test_salvar_configuracoes_com_arquivo_travado_avisa_e_nao_fecha(qapp, pasta_config, monkeypatch):
+    from vozflow import configuracoes
+
+    monkeypatch.setattr(configuracoes, "entradas_para_menu", lambda: [])
+    dlg = configuracoes.JanelaConfiguracoes(config.Config(dict(config.DEFAULTS)))
+    antes = dict(dlg.cfg)
+
+    def negado(*_a):
+        raise PermissionError("em uso")
+
+    monkeypatch.setattr(config.os, "replace", negado)
+    dlg.chk_sons.setChecked(not dlg.cfg["sounds"])
+    dlg._salvar()                                  # nao levanta
+    assert dict(dlg.cfg) == antes                  # nada vale sem ter sido salvo
+    assert "Nao consegui gravar" in dlg.aviso.text()
+    assert dlg.result() == 0                       # dialogo continua aberto
+    dlg.deleteLater()
 
 
 def test_falha_ao_gravar_no_boot_nao_impede_o_app_de_abrir(pasta_config, monkeypatch):

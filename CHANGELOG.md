@@ -53,7 +53,10 @@ padrões de configuração.
 - Pisos de `certifi` (raiz emSign comprometida removida), `urllib3`,
   `requests` e `filelock` acima das versões com vulnerabilidades conhecidas.
 - Build reprodutível: `requirements-lock.txt` com hashes e PyInstaller em
-  versão fixa.
+  versão fixa (o cuBLAS da versão GPU ainda fica fora do lock — ver
+  [Empacotamento](docs/EMPACOTAMENTO.md)).
+- `config.json` salvo em outra codificação (UTF-16 do PowerShell, ANSI) não
+  impede mais o app de abrir; falha ao salvar nas Configurações agora avisa.
 - Suíte de testes automatizados (`pytest`) e CI no Windows.
 
 ---

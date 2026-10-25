@@ -45,6 +45,12 @@ if errorlevel 1 (
 
 echo -- instalando PyInstaller --
 "%PY%" -m pip install pyinstaller==6.22.2 pyinstaller-hooks-contrib==2026.7 --quiet
+if errorlevel 1 (
+    echo.
+    echo [ERRO] Nao consegui instalar o PyInstaller 6.22.2.
+    pause
+    exit /b 1
+)
 
 echo.
 echo -- empacotando (leva varios minutos) --

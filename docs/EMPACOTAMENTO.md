@@ -86,26 +86,42 @@ O `gerar-exe.bat` não instala "a versão do dia" de nada:
 
 - as dependências que vão dentro do executável saem de
   **`requirements-lock.txt`**, com versão exata e hash SHA-256 de cada arquivo
-  (`pip install --require-hashes`). Um pacote trocado no PyPI ou uma versão
-  nova com regressão não entram no build sem ninguém ver;
+  (`pip install --require-hashes`). Uma versão nova com regressão não entra
+  no build sem ninguém ver, e um pacote **baixado** que não bate com o hash é
+  recusado;
 - o **PyInstaller** fica numa versão fixa no próprio `gerar-exe.bat`.
 
+Limites: o pip não reconfere o hash do que **já está instalado** no `.venv`
+("already satisfied") nem remove pacotes a mais. Para o build de uma Release,
+use um `.venv` recém-criado (`instalar.bat` numa cópia limpa) ou rode antes
+`.venv\Scripts\pip install --force-reinstall --require-hashes -r requirements-lock.txt`.
+
 `requirements.txt` continua com intervalos (`>=`) para quem instala o ambiente
-de desenvolvimento; o lock é o que o build usa.
+de desenvolvimento — e é o que o CI testa, de propósito, para quebras de
+versões novas aparecerem cedo. O lock é o que o build usa.
 
 **Para atualizar uma dependência:** mude o piso em `requirements.txt` se for o
-caso, atualize o `.venv`, rode a suíte (`python -m pytest -q`) e regenere o lock
-a partir dele:
+caso e regenere o lock. O `pip-compile` resolve contra o PyPI (não contra o
+seu `.venv`) e mantém as versões que já estão no lock; para subir uma, use
+`--upgrade-package <nome>`:
 
 ```bat
 .venv\Scripts\pip install pip-tools
 .venv\Scripts\pip-compile --generate-hashes --strip-extras --allow-unsafe -o requirements-lock.txt requirements.txt
 ```
 
-O `pip-compile` mantém as versões já presentes no lock; para subir uma, use
-`--upgrade-package <nome>`. Os pacotes de GPU (`requirements-gpu.txt`) ficam
-fora do lock: só os binários do cuBLAS entram no executável, copiados pelo
-`.spec`.
+Depois **sincronize o `.venv` com o lock novo e só então teste** — senão a
+versão testada pode não ser a que entrou no lock:
+
+```bat
+.venv\Scripts\pip install --require-hashes -r requirements-lock.txt
+.venv\Scripts\python -m pytest -q
+```
+
+Os pacotes de GPU (`requirements-gpu.txt`) ficam **fora do lock**: o cuBLAS
+(~736 MB do executável GPU) continua sem versão exata nem hash. Só os binários
+dele entram no executável, copiados pelo `.spec`; fixá-lo é o próximo passo
+para a versão GPU ser reprodutível também.
 
 Ainda **não** fixado: a revisão do modelo no Hugging Face. Fixar mudaria o
 snapshot no cache de quem já usa (novo download de 1,6 GB, ou falha sem

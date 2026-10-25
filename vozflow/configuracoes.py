@@ -528,6 +528,7 @@ class JanelaConfiguracoes(QtWidgets.QDialog):
             self._refrescar()
             return
 
+        antes = dict(self.cfg)
         self.cfg.update(self._valores_atalhos())
         self.cfg["suppress_hotkeys"] = self.chk_suprimir.isChecked()
         self.cfg["input_device"] = self.cbo_mic.currentData()
@@ -548,7 +549,18 @@ class JanelaConfiguracoes(QtWidgets.QDialog):
         self.cfg["log_transcricoes"] = self.chk_log.isChecked()
         if self._limiar_calibrado is not None:
             self.cfg["nivel_fala"] = self._limiar_calibrado
-        self.cfg.save()
+        try:
+            self.cfg.save()
+        except OSError as exc:
+            # Arquivo travado (antivirus, sincronizacao de nuvem): antes a
+            # excecao escapava do slot e o dialogo ficava aberto sem explicacao.
+            # Volta a cfg em memoria para nao valer algo que nao foi salvo.
+            self.cfg.clear()
+            self.cfg.update(antes)
+            self.aviso.setStyleSheet("color:#c0392b;")
+            self.aviso.setText("Nao consegui gravar o config.json (" + str(exc)
+                               + "). Feche o programa que esta usando o arquivo e tente de novo.")
+            return
 
         self.startup_pedido = self.chk_startup.isChecked()
         self.modelo_mudou = self.cbo_modelo.currentText() != self._modelo_inicial
