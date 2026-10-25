@@ -74,6 +74,44 @@ def em_foco(hwnd: int) -> bool:
         return True
 
 
+# Janelas do shell que ganham o foco quando se clica na bandeja. Nunca sao o
+# destino de um ditado: travar nelas fazia o texto todo "esperar" e, no fim,
+# ser digitado na barra de tarefas.
+_CLASSES_DO_SHELL = {
+    "Shell_TrayWnd", "Shell_SecondaryTrayWnd", "NotifyIconOverflowWindow",
+    "TopLevelWindowForOverflowXamlIsland", "Progman", "WorkerW",
+}
+
+
+def classe(hwnd: int) -> str:
+    if _u32 is None or not existe(hwnd):
+        return ""
+    try:
+        buf = ctypes.create_unicode_buffer(256)
+        _u32.GetClassNameW(hwnd, buf, 256)
+        return buf.value or ""
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def alvo_valido(hwnd: int) -> bool:
+    """False para a barra de tarefas/area de trabalho e janelas do proprio VozFlow
+    (o menu da bandeja), que ficam em primeiro plano quando a ditada comeca pelo
+    icone - o texto nao tem como ser para elas."""
+    if not existe(hwnd):
+        return False
+    if classe(hwnd) in _CLASSES_DO_SHELL:
+        return False
+    try:
+        pid = ctypes.c_ulong(0)
+        _u32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        if pid.value == _k32.GetCurrentProcessId():
+            return False
+    except Exception:  # noqa: BLE001
+        pass
+    return True
+
+
 def titulo(hwnd: int) -> str:
     if _u32 is None or not existe(hwnd):
         return ""

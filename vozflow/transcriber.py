@@ -8,6 +8,7 @@ e transcrito uma ultima vez com mais qualidade e vira texto definitivo.
 
 from __future__ import annotations
 
+import difflib
 import os
 import queue
 import sys
@@ -71,6 +72,34 @@ def _prepare_cuda_dlls() -> list[str]:
         os.environ["PATH"] = os.pathsep.join(pastas) + os.pathsep + os.environ.get("PATH", "")
     _cuda_preparado = True
     return pastas
+
+
+def _resto_depois_do_emitido(emitido: list[str], final: list[str]) -> list[str]:
+    """Palavras da versao final que vem DEPOIS do que ja foi digitado.
+
+    A versao final (beam 5) as vezes junta, separa ou insere palavras em
+    relacao as parciais. Cortar pela contagem de palavras repetia ou perdia o
+    fim do trecho; aqui as duas versoes sao alinhadas pelas letras (sem
+    acento, pontuacao nem espaco) e o corte cai na primeira palavra inteira
+    depois do ponto correspondente ao fim do que ja saiu.
+    """
+    if not emitido:
+        return final
+    ja = "".join(texto_util._chave(p) for p in emitido)
+    chaves = [texto_util._chave(p) for p in final]
+    tudo = "".join(chaves)
+    pos = len(tudo)
+    for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(
+            None, ja, tudo, autojunk=False).get_opcodes():
+        if i1 <= len(ja) <= i2:
+            pos = j1 + (len(ja) - i1) if tag == "equal" else j2
+            break
+    inicio = 0
+    for n, chave in enumerate(chaves):
+        if inicio >= pos:
+            return final[n:]
+        inicio += len(chave)
+    return []
 
 
 def _cuda_disponivel() -> bool:
@@ -274,10 +303,14 @@ class LiveTranscriber(QtCore.QThread):
                 break
             if cmd == "start" and not self._recording:
                 self._iniciar()
-            elif cmd == "stop" and self._recording:
-                self._encerrar(entregar=True)
-            elif cmd == "cancel" and self._recording:
-                self._encerrar(entregar=False)
+            elif cmd in ("stop", "cancel"):
+                if self._recording:
+                    self._encerrar(entregar=cmd == "stop")
+                else:
+                    # Nada gravando (o microfone falhou ao abrir, ou o stop
+                    # chegou antes do start atrasado pelo som). Confirma mesmo
+                    # assim: o app espera este done para aceitar a proxima.
+                    self.done.emit("")
 
             if self._recording:
                 self._pump()
@@ -408,7 +441,7 @@ class LiveTranscriber(QtCore.QThread):
 
     def _emitir_resto(self, texto: str) -> None:
         """Fim do trecho: escreve o que a versao final trouxe alem do que ja foi."""
-        resto = texto.split()[len(self._emitido):]
+        resto = _resto_depois_do_emitido(self._emitido, texto.split())
         if resto:
             self.segmento.emit(" ".join(resto))
         self._emitido = []

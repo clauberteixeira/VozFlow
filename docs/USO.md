@@ -99,6 +99,31 @@ Os números por trás disso estão em [Desempenho](DESEMPENHO.md).
 
 ---
 
+## O texto fica na janela onde você começou
+
+Com **"Manter o texto na janela onde comecei a ditar"** ligado (padrão), a
+janela em foco no momento do atalho vira o destino. Se você troca de janela no
+meio da fala, o texto **espera** e é entregue quando o foco volta — ou, no fim,
+o VozFlow traz a janela de volta antes de escrever. Se ela não voltar, nada é
+digitado às cegas: o texto inteiro vai para a área de transferência.
+
+- **Começou pelo ícone ou pelo menu da bandeja?** Nesse instante o foco está na
+  barra de tarefas, que não pode ser o destino. O texto espera até você clicar
+  na janela onde ele deve entrar, e a trava fica nela.
+- **Uma ditada por vez.** Logo depois de encerrar (ou cancelar), o VozFlow
+  ainda está entregando o fim do texto. Um novo atalho nesse intervalo mostra
+  *"Terminando de entregar a ditada anterior..."* e é ignorado — senão o fim da
+  primeira iria para a janela da segunda, com a regra de Enter dela. Na GPU o
+  intervalo é de frações de segundo.
+- **Cancelar descarta na hora** o que ainda não tinha sido escrito, inclusive
+  texto que estava esperando o foco voltar.
+- **Limite:** a trava reconhece a *janela*, não a conversa dentro dela. No
+  WhatsApp, Discord ou numa aba do navegador, trocar de conversa ou de aba no
+  meio da ditada continua sendo a mesma janela — o resto do texto (e o Enter)
+  vai para a conversa que estiver aberta.
+
+---
+
 ## Só a sua voz, não a sala
 
 O Whisper transcreve tudo que chega no áudio — ele não sabe quem está falando.
@@ -180,10 +205,14 @@ A referência completa de cada opção está em [Configuração](CONFIGURACAO.md
 
 | valor | comportamento |
 |---|---|
-| `paste` *(padrão)* | cola na janela ativa via área de transferência (`Ctrl+V`), restaurando o clipboard anterior depois |
+| `paste` *(padrão)* | cola na janela ativa via área de transferência (`Ctrl+V`) e devolve o conteúdo anterior ~0,8 s depois — a menos que você tenha copiado outra coisa nesse meio-tempo |
 | `type` | digita tecla a tecla — para apps que bloqueiam colagem |
 | `clipboard` | só copia; você cola onde quiser |
-| `webhook` | manda `POST {"texto": "..."}` para a URL configurada |
+| `webhook` | manda `POST {"texto": "..."}` para a URL configurada; não depende de foco de janela |
+
+Escrevendo ao vivo, o texto sai pelo teclado e a área de transferência não é
+tocada. Se a entrega falhar (webhook fora do ar, janela que não voltou ao
+foco), o texto é copiado e a mensagem de erro diz isso.
 
 Com `press_enter_after` ligado, ele ainda aperta Enter — o que envia a
 mensagem no WhatsApp, no chat, ou submete o formulário.

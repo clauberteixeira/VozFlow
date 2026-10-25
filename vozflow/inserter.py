@@ -62,8 +62,22 @@ def colar(texto: str, enter: bool = False, restaurar: bool = True) -> bool:
         keyboard.send("enter")
 
     if restaurar and anterior and anterior != texto:
-        threading.Timer(0.8, lambda: copiar(anterior)).start()
+        # Ctrl+V e assincrono: o app de destino le o clipboard quando o loop
+        # dele processar a tecla, e Chromium/Office ocupados demoram. Restaurar
+        # na hora fazia colar o conteudo ANTERIOR (uma senha copiada, por
+        # exemplo). E so restaura se o clipboard ainda for nosso: se a pessoa
+        # copiou outra coisa nesse meio-tempo, a copia nova fica.
+        threading.Timer(0.8, _restaurar_se_intacto, (texto, anterior)).start()
     return True
+
+
+def _restaurar_se_intacto(nosso: str, anterior: str) -> None:
+    try:
+        if pyperclip.paste() != nosso:
+            return
+    except Exception:  # noqa: BLE001
+        return
+    copiar(anterior)
 
 
 def apertar_enter() -> bool:

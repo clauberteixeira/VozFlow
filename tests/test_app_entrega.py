@@ -4,8 +4,6 @@ Usa o VozFlow real com teclado, clipboard, janela e motor trocados por dubles
 (ver conftest.py). Nada e digitado de verdade.
 """
 
-import pytest
-
 from conftest import esperar
 
 
@@ -84,9 +82,162 @@ def test_historico_registra_o_texto_final(vozflow_app, qapp, pasta_config):
     assert "linha do historico" in (pasta_config / "transcricoes.txt").read_text(encoding="utf-8")
 
 
-@pytest.mark.xfail(strict=True, reason="F-028: 'So copiar' e desfeito pela restauracao do clipboard")
 def test_acao_so_copiar_deixa_o_texto_no_clipboard(vozflow_app, qapp):
+    """F-028."""
     app, _teclado, clip, _jan = vozflow_app(action_on_stop="clipboard")
     _ditar(app, "copie isto")
     esperar(lambda: any(e in ("done", "erro") for e, _ in app.overlay.mensagens), app=qapp)
     assert clip.valor == "copie isto"
+
+
+# ----------------------------------------------------------------------
+# L4: integridade da entrega
+# ----------------------------------------------------------------------
+def _mensagens(app):
+    return [m for _, m in app.overlay.mensagens]
+
+
+def _entregue(app):
+    return any(e in ("done", "erro") for e, _ in app.overlay.mensagens)
+
+
+def test_stop_normal_digita_o_resto_final(vozflow_app, qapp):
+    # o ultimo trecho chega DEPOIS do parar(): nao pode ser descartado
+    app, teclado, _clip, _jan = vozflow_app()
+    app.iniciar()
+    app.engine.segmento.emit("um")
+    app.parar()
+    app.engine.segmento.emit("dois")
+    app.engine._recording = False
+    app.engine.done.emit("um dois")
+    assert esperar(lambda: teclado.texto == "um dois", app=qapp)
+
+
+def test_cancelar_descarta_o_texto_pendente(vozflow_app, qapp):
+    """F-020: texto segurado nao pode sair depois do cancelar."""
+    app, teclado, _clip, jan = vozflow_app()
+    app.iniciar()
+    jan.foco = 0x200
+    app.engine.segmento.emit("nao era para sair")
+    app.cancelar()
+    app.engine.done.emit("")
+    jan.foco = 0x100                      # foco volta
+    assert not esperar(lambda: teclado.texto, timeout=0.8, app=qapp)
+
+
+def test_segmento_atrasado_depois_de_cancelar_e_ignorado(vozflow_app, qapp):
+    app, teclado, _clip, _jan = vozflow_app()
+    app.iniciar()
+    app.cancelar()
+    app.engine.segmento.emit("tarde demais")
+    app.engine.done.emit("")
+    assert not esperar(lambda: teclado.texto, timeout=0.6, app=qapp)
+
+
+def test_falha_durante_a_gravacao_cancela_o_motor(vozflow_app, qapp):
+    """F-019: depois do erro, microfone desligado e nada mais digitado."""
+    app, teclado, _clip, _jan = vozflow_app()
+    app.iniciar()
+    app.engine.failed.emit("Falha ao transcrever: CUDA out of memory")
+    assert "cancel" in app.engine.comandos
+    app.engine.segmento.emit("depois do erro")
+    app.engine.done.emit("")
+    assert not esperar(lambda: teclado.texto, timeout=0.6, app=qapp)
+
+
+def test_nova_ditada_espera_a_anterior_ser_entregue(vozflow_app, qapp):
+    """F-010: o fim de A nao pode ir para a janela de B."""
+    app, teclado, _clip, jan = vozflow_app()
+    app.iniciar()
+    app.engine.segmento.emit("fim de A")
+    app.parar()
+    jan.foco = 0x200                      # usuario ja foi para outra janela
+    app.iniciar()                         # ... e tentou ditar de novo
+    assert not app._quer_gravar
+    assert any("anterior" in m for m in _mensagens(app))
+    app.engine._recording = False
+    app.engine.done.emit("fim de A")
+    assert esperar(lambda: teclado.texto == "fim de A", app=qapp)
+    assert jan.restauradas[-1] == 0x100
+    assert esperar(lambda: _entregue(app), app=qapp)
+    app.iniciar()                         # agora pode
+    assert app._quer_gravar
+
+
+def test_prazo_maximo_nunca_trava_o_app(vozflow_app, qapp):
+    import time
+
+    app, _teclado, _clip, _jan = vozflow_app()
+    app._entregando = True
+    app._entregando_desde = time.monotonic() - 3600
+    app.iniciar()
+    assert app._quer_gravar
+
+
+def test_modo_colar_nao_restaura_o_clipboard_antes_do_ctrl_v_ser_lido(vozflow_app, qapp):
+    """F-001: logo apos a entrega o clipboard ainda tem o texto ditado."""
+    app, _teclado, clip, _jan = vozflow_app(insercao_ao_vivo=False)
+    _ditar(app, "texto colado")
+    assert esperar(lambda: _entregue(app), app=qapp)
+    assert clip.valor == "texto colado"
+
+
+def test_ao_vivo_preserva_o_que_o_usuario_copiou_durante_a_ditada(vozflow_app, qapp):
+    """F-011: o modo ao vivo nao usa o clipboard e nao deve mexer nele."""
+    app, _teclado, clip, _jan = vozflow_app()
+    app.iniciar()
+    clip.copy("copiado durante a ditada")
+    app.engine.segmento.emit("oi")
+    app.parar()
+    app.engine._recording = False
+    app.engine.done.emit("oi")
+    assert esperar(lambda: _entregue(app), app=qapp)
+    assert clip.valor == "copiado durante a ditada"
+
+
+def test_falha_do_webhook_copia_o_texto_e_nao_depende_do_foco(vozflow_app, qapp, monkeypatch):
+    """F-006 e F-024."""
+    from vozflow import inserter
+
+    enviados = []
+    monkeypatch.setattr(inserter, "enviar_webhook",
+                        lambda url, campo, texto: enviados.append(texto) or (False, "HTTP 500"))
+    app, _teclado, clip, jan = vozflow_app(action_on_stop="webhook")
+    jan.restaurar_ok = False
+    app.iniciar()
+    jan.foco = 0x200
+    app.parar()
+    app.engine._recording = False
+    app.engine.done.emit("para o webhook")
+    assert esperar(lambda: _entregue(app), app=qapp)
+    assert enviados == ["para o webhook"]
+    assert clip.valor == "para o webhook"
+    assert any("texto copiado" in m for m in _mensagens(app))
+
+
+def test_sem_foco_no_fim_copia_o_texto_completo(vozflow_app, qapp):
+    app, teclado, clip, jan = vozflow_app()
+    app.iniciar()
+    app.engine.segmento.emit("parte um")
+    assert esperar(lambda: teclado.texto == "parte um", app=qapp)
+    jan.foco = 0x200
+    jan.restaurar_ok = False
+    app.engine.segmento.emit("parte dois")
+    app.parar()
+    app.engine._recording = False
+    app.engine.done.emit("parte um parte dois")
+    assert esperar(lambda: _entregue(app), app=qapp)
+    assert clip.valor == "parte um parte dois"
+    assert teclado.texto == "parte um"
+
+
+def test_ditada_pela_bandeja_trava_na_proxima_janela_de_verdade(vozflow_app, qapp):
+    """F-022: a barra de tarefas nunca vira a janela alvo."""
+    app, teclado, _clip, jan = vozflow_app()
+    jan.foco = 0x900                      # clicou no icone da bandeja
+    app.iniciar()
+    app.engine.segmento.emit("pela bandeja")
+    assert not esperar(lambda: teclado.texto, timeout=0.6, app=qapp)
+    jan.foco = 0x200                      # clicou na janela onde quer o texto
+    assert esperar(lambda: teclado.texto == "pela bandeja", app=qapp)
+    assert app._janela_alvo == 0x200

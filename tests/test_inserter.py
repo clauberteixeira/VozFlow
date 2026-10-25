@@ -59,6 +59,31 @@ def test_webhook_manda_o_campo_configurado(monkeypatch):
     assert enviado["json"] == {"msg": "oi"}
 
 
+def test_colar_restaura_depois_e_so_se_o_clipboard_ainda_for_nosso(monkeypatch):
+    """F-001/F-011: restauracao atrasada e que nao atropela copia nova do usuario."""
+    import time
+
+    import pyperclip
+
+    from conftest import ClipboardFalso, TecladoFalso, esperar
+
+    teclado, clip = TecladoFalso(), ClipboardFalso("anterior")
+    monkeypatch.setattr(inserter, "keyboard", teclado)
+    monkeypatch.setattr(pyperclip, "copy", clip.copy)
+    monkeypatch.setattr(pyperclip, "paste", clip.paste)
+
+    assert inserter.colar("ditado")
+    assert teclado.enviados == ["ctrl+v"]
+    assert clip.valor == "ditado"             # nada restaurado na hora
+    clip.copy("copia nova do usuario")
+    time.sleep(1.2)
+    assert clip.valor == "copia nova do usuario"
+
+    clip.copy("anterior")
+    assert inserter.colar("outro ditado")
+    assert esperar(lambda: clip.valor == "anterior", timeout=3)
+
+
 def test_webhook_com_erro_http(monkeypatch):
     monkeypatch.setitem(sys.modules, "requests", types.SimpleNamespace(
         post=lambda *a, **k: types.SimpleNamespace(status_code=500)))

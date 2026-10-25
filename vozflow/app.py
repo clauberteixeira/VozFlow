@@ -47,6 +47,12 @@ STARTUP_DIR = (
 )
 STARTUP_FILE = STARTUP_DIR / (APP_NAME + ".vbs")
 
+# Teto para esperar a ditada anterior ser entregue antes de aceitar outra. A
+# transcricao final de um trecho de 20 s na CPU leva varios segundos; passar
+# disto so acontece se algo travou, e ai e melhor voltar a ditar do que o app
+# "parar de gravar" para sempre.
+PRAZO_ENTREGA_S = 30.0
+
 ACOES = [
     ("paste", "Colar na janela ativa"),
     ("type", "Digitar tecla a tecla"),
@@ -210,11 +216,19 @@ class VozFlow(QtCore.QObject):
         # tecla nesse intervalo seria engolido no modo alterna.
         self._quer_gravar = False
         self._inseriu_algo = False
-        self._clip_antes = ""
         self._janela_alvo = 0      # HWND onde a ditada comecou
+        # A ditada comecou com o foco na bandeja/barra de tarefas (clique no
+        # icone): a trava fica na primeira janela de verdade que ganhar foco.
+        self._esperar_alvo = False
         self._segurando = False    # texto esperando o foco voltar
         self._falha_foco = ""
         self._enter_pedido = False  # qual par de atalhos disparou esta ditada
+        # Entre o parar/cancelar e o fim da entrega, uma nova ditada mexeria na
+        # janela alvo e no Enter que a anterior ainda esta usando.
+        self._entregando = False
+        self._entregando_desde = 0.0
+        # Cancelada (ou falhou): o que ainda chegar do motor nao e escrito.
+        self._descartando = False
         self._guarda = GuardaNumerico()
         self._fila: queue.Queue = queue.Queue()
         self._thread_insercao = threading.Thread(
@@ -352,8 +366,11 @@ class VozFlow(QtCore.QObject):
         if not self._quer_gravar:
             return
         if segurando:
-            nome = janela.nome_curto(self._janela_alvo) or "a janela original"
             self.overlay.set_estado("proc")
+            if self._esperar_alvo:
+                self.overlay.set_texto("Segurando o texto - clique na janela onde ele deve entrar")
+                return
+            nome = janela.nome_curto(self._janela_alvo) or "a janela original"
             self.overlay.set_texto("Segurando o texto - volte para " + nome)
         else:
             self.overlay.set_estado("rec")
@@ -473,19 +490,31 @@ class VozFlow(QtCore.QObject):
                 msg += "   -  so na primeira vez"
             self.overlay.flash(msg, "proc", 3500)
             return
+        if self._entregando:
+            # A anterior ainda usa a janela alvo e a regra de Enter: comecar
+            # agora mandaria o fim dela para a janela desta (com o Enter desta).
+            if time.monotonic() - self._entregando_desde < PRAZO_ENTREGA_S:
+                self.overlay.flash("Terminando de entregar a ditada anterior...", "proc", 1500)
+                return
+            _dbg("PRAZO de entrega estourado; liberando nova ditada")
+            self._entregando = False
         self._quer_gravar = True
+        self._descartando = False
         self._inseriu_algo = False
         self._segurando = False
         self._falha_foco = ""
         # A janela tem de ser capturada AGORA, antes do som e de qualquer
         # espera: e neste instante que ela ainda e a que voce escolheu. O
         # overlay nunca rouba foco (Qt.Tool + WA_ShowWithoutActivating), entao
-        # o que se captura aqui e a sua janela de verdade.
-        self._janela_alvo = janela.atual() if self.cfg.get("travar_janela", True) else 0
+        # o que se captura aqui e a sua janela de verdade - exceto quando a
+        # ditada sai de um clique na bandeja: ai o foco e da barra de tarefas
+        # (ou do menu do proprio VozFlow), e a trava espera a proxima janela.
+        alvo = janela.atual() if self.cfg.get("travar_janela", True) else 0
+        self._esperar_alvo = bool(alvo) and not janela.alvo_valido(alvo)
+        self._janela_alvo = 0 if self._esperar_alvo else alvo
         _dbg(f"INICIAR alvo={hex(self._janela_alvo)} '{janela.nome_curto(self._janela_alvo)}' "
-             f"travar={self.cfg.get('travar_janela')} ao_vivo={self._ao_vivo} "
-             f"enter={self._enter_pedido}")
-        self._guardar_clipboard()
+             f"travar={self.cfg.get('travar_janela')} esperar_alvo={self._esperar_alvo} "
+             f"ao_vivo={self._ao_vivo} enter={self._enter_pedido}")
         if self.cfg.get("sounds"):
             _som("iniciar")
             # O fone Bluetooth troca de A2DP para HFP no instante em que o
@@ -515,6 +544,7 @@ class VozFlow(QtCore.QObject):
         if not self._quer_gravar:
             return
         self._quer_gravar = False
+        self._marcar_entregando()
         if self.cfg.get("sounds"):
             _som("parar")
         self.tray.setIcon(self.ic_proc)
@@ -525,11 +555,26 @@ class VozFlow(QtCore.QObject):
         if not self._quer_gravar:
             return
         self._quer_gravar = False
+        self._marcar_entregando()   # ate o motor confirmar com done("")
+        self._descartar()
         if self.cfg.get("sounds"):
             _som("cancelar")
         self.engine.cmd_cancel()
         self.tray.setIcon(self.ic_idle)
         self.overlay.flash("Gravacao cancelada", "erro", 1200)
+
+    def _marcar_entregando(self) -> None:
+        self._entregando = True
+        self._entregando_desde = time.monotonic()
+
+    def _descartar(self) -> None:
+        """Joga fora o texto que ainda nao saiu - e o que ainda vier do motor.
+
+        Sem isto, o texto segurado (foco fora) de uma ditada cancelada saia
+        depois, ou na janela da ditada seguinte, com o Enter dela.
+        """
+        self._descartando = True
+        self._fila.put(("", "descartar", ""))
 
     # -- reacoes do motor ------------------------------------------------
     def _ao_carregar(self, backend: str) -> None:
@@ -576,7 +621,8 @@ class VozFlow(QtCore.QObject):
         # normal - dando a impressao de que a ditada tinha parado. O aviso anda
         # junto com o texto ate o foco voltar.
         if self._segurando:
-            nome = janela.nome_curto(self._janela_alvo, 22) or "a janela original"
+            nome = ("a janela que voce clicar" if self._esperar_alvo
+                    else janela.nome_curto(self._janela_alvo, 22) or "a janela original")
             texto = "[segurando p/ " + nome + "]  " + texto
         self.overlay.set_texto(texto)
 
@@ -589,24 +635,11 @@ class VozFlow(QtCore.QObject):
             and (self.cfg.get("action_on_stop") or "paste").lower() in ("paste", "type")
         )
 
-    def _guardar_clipboard(self) -> None:
-        try:
-            import pyperclip
-
-            self._clip_antes = pyperclip.paste()
-        except Exception:  # noqa: BLE001
-            self._clip_antes = ""
-
-    def _restaurar_clipboard(self) -> None:
-        if not self._clip_antes:
-            return
-        try:
-            import pyperclip
-
-            pyperclip.copy(self._clip_antes)
-        except Exception:  # noqa: BLE001
-            pass
-        self._clip_antes = ""
+    # A area de transferencia so e restaurada por inserter.colar(), o unico
+    # caminho que a usa como meio de transporte. Antes o app tambem restaurava
+    # ao fim de toda ditada, e isso desfazia o "So copiar", recolocava o
+    # conteudo antigo antes do Ctrl+V ser lido e apagava o que a pessoa
+    # copiasse durante a fala (ou a formatacao do que ja estava copiado).
 
     def _worker_insercao(self) -> None:
         """Escreve o texto num fluxo continuo, nao em blocos.
@@ -633,10 +666,16 @@ class VozFlow(QtCore.QObject):
             if item is None:
                 break
             if item is not ...:
-                trecho, acao = item        # acao: False | "fim" | True (fim+Enter)
+                # acao: False | "fim" | True (fim+Enter) | "descartar"
+                # completo: texto final da ditada, para copiar se o foco falhar
+                trecho, acao, completo = item
                 if trecho:
                     pendente += trecho
-                if acao:
+                if acao == "descartar":
+                    pendente = ""
+                    credito = 0.0
+                    enviado = ""
+                elif acao:
                     # Fim da ditada: traz de volta a janela onde tudo comecou,
                     # solta o que sobrou e, se pedido, aperta Enter. O digitar()
                     # espera os modificadores do atalho serem soltos antes.
@@ -653,17 +692,17 @@ class VozFlow(QtCore.QObject):
                             ok_foco = janela.restaurar(self._janela_alvo)
                             _dbg(f"FIM restaurar({hex(self._janela_alvo)})={ok_foco} "
                                  f"pendente={len(pendente)} acao={acao!r}")
+                        elif self._esperar_alvo:
+                            ok_foco = False   # nenhuma janela de verdade recebeu foco
                         if not ok_foco:
                             self._falha_foco = "a janela original nao voltou ao foco"
-                        if pendente:
-                            if ok_foco:
-                                digitar(pendente)
-                            else:
-                                # Sem foco confirmado nao se digita as cegas: com
-                                # "apertar Enter" ligado isso mandaria a mensagem
-                                # na janela errada.
-                                copiar(pendente)
-                                self._clip_antes = ""   # nao restaurar por cima
+                            # Sem foco confirmado nao se digita as cegas: com
+                            # "apertar Enter" ligado isso mandaria a mensagem na
+                            # janela errada. Vai o texto INTEIRO, nao so a sobra:
+                            # e o que a mensagem "texto copiado" promete.
+                            copiar(completo or pendente)
+                        elif pendente:
+                            digitar(pendente)
                         if acao is True and ok_foco:
                             apertar_enter()
                         # Comparar isto com o texto em transcricoes.txt diz se a
@@ -681,6 +720,12 @@ class VozFlow(QtCore.QObject):
                 self._fila.task_done()
 
             if not pendente:
+                continue
+            # Cancelou: vale na hora, sem esperar o marcador atravessar a fila
+            # (trechos enfileirados antes dele sairiam numa rajada).
+            if self._descartando:
+                pendente = ""
+                credito = 0.0
                 continue
             # Janela travada: enquanto o foco esta fora, o texto ESPERA aqui.
             # Escrever agora jogaria o resto da ditada na janela errada - era
@@ -718,6 +763,17 @@ class VozFlow(QtCore.QObject):
     def _pode_escrever(self) -> bool:
         """True quando o foco esta na janela alvo (ou nao ha alvo travado)."""
         alvo = self._janela_alvo
+        if not alvo and self._esperar_alvo:
+            atual = janela.atual()
+            if atual and janela.alvo_valido(atual):
+                _dbg(f"TRAVOU em {hex(atual)} '{janela.nome_curto(atual)}' (ditada pela bandeja)")
+                self._janela_alvo = alvo = atual
+                self._esperar_alvo = False
+            else:
+                if not self._segurando:
+                    self._segurando = True
+                    self.sig_segurando.emit(True)
+                return False
         if not alvo:
             return True
         if not janela.existe(alvo):     # fecharam a janela no meio da ditada
@@ -740,18 +796,25 @@ class VozFlow(QtCore.QObject):
         """Trecho fechou: escreve ele no campo em foco, ainda durante a fala."""
         trecho = (trecho or "").strip()
         _dbg(f"SEGMENTO {trecho[:40]!r} ao_vivo={self._ao_vivo}")
-        if not trecho or not self._ao_vivo:
+        # NAO usar _quer_gravar aqui: o parar() o desliga antes de o motor
+        # mandar o ultimo trecho, e o fim de toda ditada sumiria.
+        if not trecho or not self._ao_vivo or self._descartando:
             return
-        self._fila.put(((" " if self._inseriu_algo else "") + trecho, False))
+        self._fila.put(((" " if self._inseriu_algo else "") + trecho, False, ""))
         self._inseriu_algo = True
 
     # -- fim da gravacao ---------------------------------------------------
     def _ao_terminar(self, texto: str) -> None:
         self.tray.setIcon(self.ic_idle)
         texto = (texto or "").strip()
-        if not texto:
-            self._restaurar_clipboard()
-            self.overlay.esconder()
+        if self._descartando or not texto:
+            # Cancelada, falhou ou nao saiu nada: o que estiver no buffer nao
+            # pode escapar depois, nem na proxima ditada.
+            descartada = self._descartando
+            self._descartar()
+            self._entregando = False
+            if not descartada:
+                self.overlay.esconder()   # cancelar/falha deixam o aviso na tela
             return
         self._ultimo_texto = texto
         self._registrar_log(texto)
@@ -761,7 +824,7 @@ class VozFlow(QtCore.QObject):
             # O texto ja foi saindo enquanto o usuario falava. Este marcador
             # esvazia o que restou no buffer e, se pedido, aperta Enter - e faz
             # o _fila.join() esperar ate a ultima letra estar na tela.
-            self._fila.put(("", True if self._enter_pedido else "fim"))
+            self._fila.put(("", True if self._enter_pedido else "fim", texto))
             threading.Thread(target=self._finalizar_ao_vivo,
                              args=(len(texto),), daemon=True).start()
         else:
@@ -769,7 +832,6 @@ class VozFlow(QtCore.QObject):
 
     def _finalizar_ao_vivo(self, tamanho: int) -> None:
         self._fila.join()          # espera a fila esvaziar
-        self._restaurar_clipboard()   # no-op se o texto foi para o clipboard
         if self._falha_foco:
             self.sig_entregue.emit(
                 False, self._falha_foco + "; texto copiado", tamanho
@@ -781,23 +843,30 @@ class VozFlow(QtCore.QObject):
         )
 
     def _entregar(self, texto: str) -> None:
-        # Volta para a janela onde a ditada comecou antes de colar. Sem foco
-        # confirmado nao se cola nem se aperta Enter: iria para a janela errada.
-        if self._janela_alvo and not janela.restaurar(self._janela_alvo):
-            copiar(texto)
-            self._clip_antes = ""
-            self.sig_entregue.emit(
-                False, "a janela original nao voltou ao foco; texto copiado", len(texto)
-            )
-            return
+        acao = (self.cfg.get("action_on_stop") or "paste").lower()
+        # Volta para a janela onde a ditada comecou antes de colar ou digitar.
+        # Sem foco confirmado nao se cola nem se aperta Enter: iria para a
+        # janela errada. Webhook e "So copiar" nao escrevem em janela nenhuma,
+        # entao nem dependem do foco nem o roubam.
+        if acao in ("paste", "type"):
+            sem_alvo = self._esperar_alvo or (
+                self._janela_alvo and not janela.restaurar(self._janela_alvo))
+            if sem_alvo:
+                copiar(texto)
+                self.sig_entregue.emit(
+                    False, "a janela original nao voltou ao foco; texto copiado", len(texto)
+                )
+                return
         try:
             ok, detalhe = entregar(self.cfg, texto, enter=self._enter_pedido)
         except Exception as exc:  # noqa: BLE001
             ok, detalhe = False, str(exc)
-        self._restaurar_clipboard()
+        if not ok and acao != "clipboard" and copiar(texto):
+            detalhe += "; texto copiado"
         self.sig_entregue.emit(ok, detalhe, len(texto))
 
     def _pos_entrega(self, ok: bool, detalhe: str, tamanho: int) -> None:
+        self._entregando = False
         if ok:
             if self.cfg.get("sounds"):
                 _som("entregue")
@@ -805,7 +874,7 @@ class VozFlow(QtCore.QObject):
                 str(tamanho) + " caracteres - " + detalhe, "done", 1500
             )
         else:
-            self.overlay.flash("Falhou: " + detalhe + " (texto na area de transferencia)", "erro", 4000)
+            self.overlay.flash("Falhou: " + detalhe, "erro", 4000)
 
     def _ao_dica(self, msg: str) -> None:
         """Aviso durante a gravacao, sem interromper nada."""
@@ -814,6 +883,13 @@ class VozFlow(QtCore.QObject):
             self.overlay.set_texto(msg)
 
     def _ao_falhar(self, msg: str) -> None:
+        if self.engine.recording:
+            # Falhou no meio da gravacao (ex.: GPU sem memoria numa parcial): o
+            # motor seguiria gravando e mandando trechos, com parar e cancelar
+            # ja ignorados aqui. Encerra de verdade e descarta o que vier.
+            self._marcar_entregando()   # ate o motor confirmar com done("")
+            self._descartar()
+            self.engine.cmd_cancel()
         self._quer_gravar = False
         self._baixando = False
         self.act_status.setText("Erro: " + msg)
