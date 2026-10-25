@@ -79,27 +79,43 @@ def _resto_depois_do_emitido(emitido: list[str], final: list[str]) -> list[str]:
 
     A versao final (beam 5) as vezes junta, separa ou insere palavras em
     relacao as parciais. Cortar pela contagem de palavras repetia ou perdia o
-    fim do trecho; aqui as duas versoes sao alinhadas pelas letras (sem
-    acento, pontuacao nem espaco) e o corte cai na primeira palavra inteira
-    depois do ponto correspondente ao fim do que ja saiu.
+    fim do trecho. Aqui as duas versoes sao alinhadas PALAVRA a palavra (sem
+    acento nem pontuacao): troca de uma palavra por outra ("voces" -> "voce")
+    conta 1 para 1; so quando a quantidade muda (juncao/separacao) o corte
+    usa o tamanho em letras.
     """
     if not emitido:
         return final
-    ja = "".join(texto_util._chave(p) for p in emitido)
+    ja = [texto_util._chave(p) for p in emitido]
     chaves = [texto_util._chave(p) for p in final]
-    tudo = "".join(chaves)
-    pos = len(tudo)
+    fim = len(ja)
     for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(
-            None, ja, tudo, autojunk=False).get_opcodes():
-        if i1 <= len(ja) <= i2:
-            pos = j1 + (len(ja) - i1) if tag == "equal" else j2
-            break
-    inicio = 0
-    for n, chave in enumerate(chaves):
-        if inicio >= pos:
-            return final[n:]
-        inicio += len(chave)
-    return []
+            None, ja, chaves, autojunk=False).get_opcodes():
+        if not i1 <= fim <= i2:
+            continue
+        if tag == "equal" or (tag == "replace" and i2 - i1 == j2 - j1 and all(
+                difflib.SequenceMatcher(None, a, b).ratio() >= 0.5
+                for a, b in zip(ja[i1:i2], chaves[j1:j2], strict=True))):
+            return final[j1 + (fim - i1):]
+        if tag in ("delete", "insert"):
+            # delete: palavras que a final nao tem; insert so cai aqui com o
+            # emitido inteiro antes dele - nos dois casos nada da final foi usado
+            return final[j1:]
+        # replace com quantidade diferente: quantas palavras da final cobrem
+        # as letras ja digitadas? Entre os cortes dentro da folga (~20%, para
+        # grafia), o MENOR - "embora" -> "embor e" nao pode engolir o "e";
+        # sem nenhum dentro dela, o mais proximo - "tres" -> "3 pessoas" corta
+        # depois do "3".
+        letras = sum(len(k) for k in ja[i1:fim])
+        folga = max(1, round(letras * 0.2))
+        somas = [0]
+        for j in range(j1, j2):
+            somas.append(somas[-1] + len(chaves[j]))
+        dentro = [c for c, s in enumerate(somas) if abs(s - letras) <= folga]
+        corte = dentro[0] if dentro else min(
+            range(len(somas)), key=lambda c: (abs(somas[c] - letras), c))
+        return final[j1 + corte:]
+    return final[fim:]
 
 
 def _cuda_disponivel() -> bool:

@@ -61,8 +61,6 @@ def test_webhook_manda_o_campo_configurado(monkeypatch):
 
 def test_colar_restaura_depois_e_so_se_o_clipboard_ainda_for_nosso(monkeypatch):
     """F-001/F-011: restauracao atrasada e que nao atropela copia nova do usuario."""
-    import time
-
     import pyperclip
 
     from conftest import ClipboardFalso, TecladoFalso, esperar
@@ -76,7 +74,7 @@ def test_colar_restaura_depois_e_so_se_o_clipboard_ainda_for_nosso(monkeypatch):
     assert teclado.enviados == ["ctrl+v"]
     assert clip.valor == "ditado"             # nada restaurado na hora
     clip.copy("copia nova do usuario")
-    time.sleep(1.2)
+    assert esperar(lambda: not _timers_vivos(), timeout=5)
     assert clip.valor == "copia nova do usuario"
 
     clip.copy("anterior")
@@ -89,3 +87,9 @@ def test_webhook_com_erro_http(monkeypatch):
         post=lambda *a, **k: types.SimpleNamespace(status_code=500)))
     ok, detalhe = inserter.enviar_webhook("https://exemplo.invalid", "texto", "oi")
     assert not ok and detalhe == "HTTP 500"
+
+
+def _timers_vivos():
+    import threading
+
+    return [t for t in threading.enumerate() if isinstance(t, threading.Timer) and t.is_alive()]

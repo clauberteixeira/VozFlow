@@ -32,6 +32,15 @@ def test_stop_e_cancel_sem_gravacao_sao_confirmados(motor, monkeypatch):
     (["eu", "quero", "cafe"], "eu quero um cafe agora", "agora"),
     (["a", "b", "c", "d"], "a b", None),
     ([], "tudo novo", "tudo novo"),
+    # ultima palavra digitada mudou na versao final (parcial beam 1 x final beam 5):
+    # o resto NAO pode sumir (casos da revisao independente do L4)
+    (["eu", "vi", "voces"], "eu vi voce ontem a noite", "ontem a noite"),
+    (["nos", "fomos", "embora"], "nos fomos embor e depois voltamos", "e depois voltamos"),
+    (["tem", "tres"], "tem 3 pessoas aqui", "pessoas aqui"),
+    (["ele", "falou"], "ele falo que vinha", "que vinha"),
+    (["estava", "chovendo"], "estava chovend muito forte hoje", "muito forte hoje"),
+    (["-"], "- e depois", "e depois"),
+    (["de", "ditado"], "digitado com calma", "com calma"),
 ])
 def test_resto_final_alinha_pelo_texto_e_nao_pela_contagem(motor, emitido, final, resto):
     """F-023: o que ja foi digitado nao se desfaz; so falta o que vem depois."""

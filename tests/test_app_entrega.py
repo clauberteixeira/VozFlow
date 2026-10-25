@@ -168,7 +168,7 @@ def test_prazo_maximo_nunca_trava_o_app(vozflow_app, qapp):
     import time
 
     app, _teclado, _clip, _jan = vozflow_app()
-    app._entregando = True
+    app._dones_pendentes = 1
     app._entregando_desde = time.monotonic() - 3600
     app.iniciar()
     assert app._quer_gravar
@@ -241,3 +241,48 @@ def test_ditada_pela_bandeja_trava_na_proxima_janela_de_verdade(vozflow_app, qap
     jan.foco = 0x200                      # clicou na janela onde quer o texto
     assert esperar(lambda: teclado.texto == "pela bandeja", app=qapp)
     assert app._janela_alvo == 0x200
+
+
+def test_bandeja_sem_texto_ao_vivo_usa_a_janela_em_foco_no_fim(vozflow_app, qapp):
+    """Revisao do L4: fora do modo ao vivo a trava tambem se resolve."""
+    app, teclado, clip, jan = vozflow_app(insercao_ao_vivo=False)
+    jan.foco = 0x900
+    app.iniciar()
+    jan.foco = 0x200
+    app.parar()
+    app.engine._recording = False
+    app.engine.done.emit("colado pela bandeja")
+    assert esperar(lambda: "ctrl+v" in teclado.enviados, app=qapp)
+    assert not any("nao voltou ao foco" in m for m in _mensagens(app))
+
+
+def test_done_atrasado_de_ditada_velha_e_ignorado(vozflow_app, qapp):
+    """Revisao do L4: depois do prazo, o done da ditada A nao vale para a B."""
+    import time
+
+    app, teclado, _clip, jan = vozflow_app()
+    app.iniciar()
+    app.parar()                               # A: motor travou, done nao vem
+    app._entregando_desde = time.monotonic() - 3600
+    jan.foco = 0x200
+    app.iniciar()                             # B depois do prazo
+    assert app._quer_gravar
+    app.engine.done.emit("texto velho de A")  # chega atrasado
+    app.engine.segmento.emit("texto de B")
+    assert esperar(lambda: teclado.texto == "texto de B", app=qapp)
+    assert not esperar(lambda: "velho" in teclado.texto, timeout=0.5, app=qapp)
+    assert app._quer_gravar and not app._descartando
+
+
+def test_falha_logo_depois_do_parar_nao_descarta_o_texto_final(vozflow_app, qapp):
+    """Revisao do L4: a transcricao final ainda vale."""
+    app, teclado, _clip, _jan = vozflow_app()
+    app.iniciar()
+    app.engine.segmento.emit("quase")
+    app.parar()
+    app.engine.failed.emit("Falha ao transcrever: erro passageiro")
+    assert "cancel" not in app.engine.comandos
+    app.engine._recording = False
+    app.engine.done.emit("quase pronto")
+    assert esperar(lambda: teclado.texto == "quase", app=qapp)
+    assert esperar(lambda: _entregue(app), app=qapp)

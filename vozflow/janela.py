@@ -80,6 +80,8 @@ def em_foco(hwnd: int) -> bool:
 _CLASSES_DO_SHELL = {
     "Shell_TrayWnd", "Shell_SecondaryTrayWnd", "NotifyIconOverflowWindow",
     "TopLevelWindowForOverflowXamlIsland", "Progman", "WorkerW",
+    # Windows 11: Iniciar, Pesquisa e paineis da barra
+    "XamlExplorerHostIslandWindow", "Windows.UI.Core.CoreWindow",
 }
 
 
