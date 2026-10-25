@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import queue
 import re
 import threading
 
@@ -290,10 +291,21 @@ class CapturaAtalho(QtWidgets.QPushButton):
         threading.Thread(target=self._ler, daemon=True).start()
 
     def _ler(self) -> None:
+        # Um gancho so a captura inteira: keyboard.read_event engancha e
+        # desengancha a cada evento, e uma tecla no intervalo se perderia.
+        fila: queue.Queue = queue.Queue()
+        gancho = None
         try:
-            combo = ler_combinacao(lambda: keyboard.read_event(suppress=False))
+            gancho = keyboard.hook(fila.put, suppress=False)
+            combo = ler_combinacao(fila.get)
         except Exception:  # noqa: BLE001
             combo = ""
+        finally:
+            if gancho is not None:
+                try:
+                    keyboard.unhook(gancho)
+                except Exception:  # noqa: BLE001
+                    pass
         self.capturado.emit(combo or "")
 
     def _aplicar(self, combo: str) -> None:

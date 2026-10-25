@@ -74,3 +74,27 @@ def test_tecla_sem_como_conferir_fica():
 
 def test_biblioteca_diferente_nao_quebra():
     assert atl.soltar_teclas_presas(SimpleNamespace(), estado=lambda sc: False) == []
+
+
+def test_captura_usa_um_gancho_so_e_sempre_desengancha(qapp, monkeypatch):
+    real = atl.keyboard
+    registro = {"ganchos": 0, "soltos": []}
+
+    def hook(callback, suppress=False):
+        registro["ganchos"] += 1
+        for t, n in ((UP, "f10"), (DOWN, "page down")):
+            callback(SimpleNamespace(event_type=t, name=n))
+        return "gancho"
+
+    falso = SimpleNamespace(KEY_DOWN=real.KEY_DOWN, is_modifier=real.is_modifier,
+                            get_hotkey_name=real.get_hotkey_name, hook=hook,
+                            unhook=registro["soltos"].append)
+    monkeypatch.setattr(atl, "keyboard", falso)
+    botao = atl.CapturaAtalho("page down")
+    lidos = []
+    botao.capturado.disconnect()
+    botao.capturado.connect(lidos.append)
+    botao._ler()
+    assert lidos == ["page down"]
+    assert registro == {"ganchos": 1, "soltos": ["gancho"]}
+    botao.deleteLater()
