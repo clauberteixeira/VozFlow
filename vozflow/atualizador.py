@@ -1,9 +1,9 @@
 """Atualizacao automatica pelas Releases do GitHub.
 
-Sai versao nova: o VozFlow baixa o instalador em segundo plano, confere o
-SHA-256 publicado junto, e instala sozinho quando ninguem esta usando o PC -
-fecha, o instalador roda em silencio (sem pedir administrador: ele instala na
-pasta do usuario) e abre o VozFlow de novo ja na versao nova.
+Sai versao nova: o VozFlow baixa o instalador em segundo plano, confere a
+ASSINATURA (vozflow/assinatura.py) e instala sozinho quando ninguem esta
+usando o PC - fecha, o instalador roda em silencio (sem pedir administrador:
+ele instala na pasta do usuario) e abre o VozFlow de novo ja na versao nova.
 
 So conversa com o GitHub: nenhum dado do usuario sai daqui. Rodando do codigo
 fonte (python main.py) nao faz nada - so o executavel instalado se atualiza.
@@ -18,25 +18,32 @@ import re
 import subprocess
 import sys
 import threading
+import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
 from PySide6 import QtCore
 
-from . import __version__
+from . import __version__, assinatura
 
 # Repositorio PUBLICO so com os instaladores: o do codigo e privado, e o
 # GitHub nao entrega Release de repositorio privado sem login.
 REPO = "clauberteixeira/VozFlow-releases"
 API = f"https://api.github.com/repos/{REPO}/releases/latest"
-# Os anexos so podem vir da propria Release do repositorio
-PREFIXO_DOWNLOAD = f"https://github.com/{REPO}/releases/download/"
+# Chave publica de quem publica (ferramentas/assinar.py). A privada nunca vai
+# para o GitHub: e ela que impede uma conta invadida de soltar um instalador.
+CHAVE_PUBLICA = bytes.fromhex("c154cfa04cf44adff8dcd64f840f4ef4e0517391ac99053fde38108554e66855")
 PASTA = Path(os.environ.get("LOCALAPPDATA") or Path.home()) / "VozFlow" / "atualizacao"
 TAMANHO_MAX = 2 * 1024 ** 3          # o instalador tem ~520 MB
 PRIMEIRA_CONSULTA_MS = 60_000        # deixa o app terminar de subir
 INTERVALO_MS = 6 * 3600 * 1000
 PARADO_PARA_INSTALAR_S = 60          # sem teclado/mouse ha isso: ninguem esta usando
+
+
+class SemVersaoPublicada(Exception):
+    pass
 
 
 def versao(texto: str | None) -> tuple[int, ...] | None:
@@ -45,11 +52,17 @@ def versao(texto: str | None) -> tuple[int, ...] | None:
     return tuple(int(p) for p in m.group(1).split(".")) if m else None
 
 
+def _maior(a: tuple[int, ...], b: tuple[int, ...]) -> bool:
+    """1.2.0 e 1.2 sao a mesma versao."""
+    n = max(len(a), len(b))
+    return a + (0,) * (n - len(a)) > b + (0,) * (n - len(b))
+
+
 @dataclass
 class Lancamento:
     versao: str            # "1.2.4"
     url_instalador: str
-    url_hash: str
+    url_assinatura: str
     tamanho: int
 
     @property
@@ -65,35 +78,45 @@ def _abrir(url: str, abrir, timeout: float = 30):
     return abrir(req, timeout=timeout)
 
 
+def _url_do_anexo(url: str, tag: str, nome: str) -> bool:
+    """Exatamente https://github.com/<REPO>/releases/download/<tag>/<nome>."""
+    u = urllib.parse.urlsplit(url)
+    return (u.scheme == "https" and u.netloc == "github.com" and not u.query
+            and u.path == f"/{REPO}/releases/download/{tag}/{nome}")
+
+
 def consultar(abrir=urllib.request.urlopen) -> Lancamento | None:
-    """A ultima Release publicada, se ela tem instalador e hash anexados."""
-    with _abrir(API, abrir, timeout=15) as r:
-        dados = json.loads(r.read(1_000_000).decode("utf-8"))
+    """A ultima Release publicada, se tem instalador e assinatura anexados."""
+    try:
+        with _abrir(API, abrir, timeout=15) as r:
+            dados = json.loads(r.read(1_000_000).decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:               # repositorio ainda sem nenhuma Release
+            raise SemVersaoPublicada() from exc
+        raise
     if not isinstance(dados, dict) or dados.get("draft") or dados.get("prerelease"):
         return None
     tag = str(dados.get("tag_name") or "")
     v = versao(tag)
     if v is None:
         return None
-    numero = ".".join(map(str, v))
-    nome = f"VozFlow-{numero}-instalador.exe"
+    nome = f"VozFlow-{'.'.join(map(str, v))}-instalador.exe"
     anexos = {a.get("name"): a for a in dados.get("assets") or [] if isinstance(a, dict)}
-    exe, sha = anexos.get(nome), anexos.get(nome + ".sha256")
-    if not exe or not sha:
+    exe, sig = anexos.get(nome), anexos.get(nome + ".sig")
+    if not exe or not sig:
         return None
-    base = PREFIXO_DOWNLOAD + tag + "/"
     url_exe = str(exe.get("browser_download_url") or "")
-    url_sha = str(sha.get("browser_download_url") or "")
-    if not (url_exe.startswith(base) and url_sha.startswith(base)):
+    url_sig = str(sig.get("browser_download_url") or "")
+    if not (_url_do_anexo(url_exe, tag, nome) and _url_do_anexo(url_sig, tag, nome + ".sig")):
         return None
-    return Lancamento(numero, url_exe, url_sha, int(exe.get("size") or 0))
+    return Lancamento(".".join(map(str, v)), url_exe, url_sig, int(exe.get("size") or 0))
 
 
 def e_mais_nova(lanc: Lancamento | None, atual: str = __version__) -> bool:
     if lanc is None:
         return False
     nova, agora = versao(lanc.versao), versao(atual)
-    return bool(nova and agora and nova > agora)
+    return bool(nova and agora and _maior(nova, agora))
 
 
 def _sha256(caminho: Path) -> str:
@@ -104,22 +127,26 @@ def _sha256(caminho: Path) -> str:
     return h.hexdigest()
 
 
-def baixar(lanc: Lancamento, pasta: Path = PASTA, abrir=urllib.request.urlopen) -> Path | None:
-    """Baixa o instalador e confere o SHA-256. Devolve o caminho, ou None.
+def _assinado(nome: str, sha: str, assinatura_hex: str, chave: bytes) -> bool:
+    try:
+        sig = bytes.fromhex(assinatura_hex)
+    except ValueError:
+        return False
+    return assinatura.conferir(chave, assinatura.mensagem(nome, sha), sig)
 
-    Arquivo que nao bate com o hash publicado e apagado: corrompido no
-    caminho ou trocado, nao roda.
+
+def baixar(lanc: Lancamento, pasta: Path = PASTA, abrir=urllib.request.urlopen,
+           chave: bytes = CHAVE_PUBLICA) -> Path:
+    """Baixa o instalador e confere a assinatura. Devolve o caminho.
+
+    Levanta ValueError se o arquivo nao confere: ele e apagado e nao roda.
     """
-    with _abrir(lanc.url_hash, abrir) as r:
-        texto = r.read(4096).decode("ascii", "replace")
-    m = re.search(r"\b([0-9a-fA-F]{64})\b", texto)
-    if not m:
-        return None
-    esperado = m.group(1).lower()
+    with _abrir(lanc.url_assinatura, abrir) as r:
+        assinatura_hex = r.read(1024).decode("ascii", "replace").strip()
 
     pasta.mkdir(parents=True, exist_ok=True)
     destino = pasta / lanc.nome_arquivo
-    if destino.exists() and _sha256(destino) == esperado:
+    if destino.exists() and _assinado(lanc.nome_arquivo, _sha256(destino), assinatura_hex, chave):
         return destino                      # ja baixado numa vez anterior
     parcial = destino.with_name(destino.name + ".part")
     h = hashlib.sha256()
@@ -132,8 +159,10 @@ def baixar(lanc: Lancamento, pasta: Path = PASTA, abrir=urllib.request.urlopen) 
                     raise ValueError("instalador grande demais")
                 h.update(bloco)
                 f.write(bloco)
-        if h.hexdigest() != esperado:
-            raise ValueError("SHA-256 nao confere")
+        if lanc.tamanho and total != lanc.tamanho:
+            raise ValueError("download incompleto")
+        if not _assinado(lanc.nome_arquivo, h.hexdigest(), assinatura_hex, chave):
+            raise ValueError("a assinatura do instalador nao confere")
         os.replace(parcial, destino)
         return destino
     finally:
@@ -153,11 +182,34 @@ def limpar_antigos(pasta: Path = PASTA, atual: str = __version__) -> None:
         if not m:
             continue
         v = versao(m.group(1))
-        if m.group(2) or v is None or (agora and v <= agora):
+        if m.group(2) or v is None or (agora and not _maior(v, agora)):
             try:
                 arq.unlink()
             except OSError:
                 pass
+
+
+# ----------------------------------------------------------------------
+# estado: fica num arquivo proprio, nunca no config.json. Regravar a config
+# na inicializacao podia trocar a do usuario pelos padroes quando o
+# config.json estava travado (antivirus no boot).
+# ----------------------------------------------------------------------
+def ler_estado(pasta: Path = PASTA) -> dict:
+    try:
+        dados = json.loads((pasta / "estado.json").read_text(encoding="utf-8"))
+        return dados if isinstance(dados, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def gravar_estado(estado: dict, pasta: Path = PASTA) -> None:
+    try:
+        pasta.mkdir(parents=True, exist_ok=True)
+        tmp = pasta / "estado.json.tmp"
+        tmp.write_text(json.dumps(estado), encoding="utf-8")
+        os.replace(tmp, pasta / "estado.json")
+    except OSError:
+        pass
 
 
 def segundos_parado() -> float:
@@ -177,39 +229,50 @@ def segundos_parado() -> float:
     return ((agora - info.dwTime) & 0xFFFFFFFF) / 1000.0
 
 
-def instalar(caminho: Path, popen=subprocess.Popen) -> None:
+def instalar(caminho: Path, popen=subprocess.Popen, voltar: str | None = None) -> None:
     """Dispara o instalador em silencio, separado deste processo.
 
     /REABRIR=1: o instalador espera o VozFlow fechar (a trava de instancia
-    unica sumir) antes de copiar e abre o VozFlow de novo no fim - ver
-    instalador.iss.
+    unica sumir) antes de copiar e abre o VozFlow de novo no fim. /VOLTAR: se
+    a instalacao falhar no meio, reabre a versao que ja estava instalada -
+    ver instalador.iss.
     """
+    args = [str(caminho), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-", "/REABRIR=1"]
+    if voltar:
+        args.append(f"/VOLTAR={voltar}")
+    # O ambiente do executavel do PyInstaller (_PYI_*, _MEIPASS2) nao pode
+    # vazar para o VozFlow que o instalador reabre.
+    env = {k: v for k, v in os.environ.items()
+           if not k.startswith("_PYI_") and k != "_MEIPASS2"}
+    env["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
     popen(
-        [str(caminho), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-", "/REABRIR=1"],
+        args,
         creationflags=getattr(subprocess, "DETACHED_PROCESS", 0)
         | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
         close_fds=True,
+        env=env,
     )
 
 
 class Atualizador(QtCore.QObject):
     """Consulta de tempos em tempos, baixa em segundo plano e instala parado.
 
-    `ocupado()` diz se o VozFlow esta no meio de algo (gravando, janela de
-    configuracoes aberta); `ao_instalar(caminho)` fecha o app e dispara o
-    instalador. A instalacao automatica espera o PC ficar parado; a pedida
-    pelo menu so espera o VozFlow desocupar.
+    `ocupado()` diz se o VozFlow esta no meio de algo (gravando, entregando
+    texto, janela de configuracoes aberta); `ao_instalar(versao, caminho)`
+    fecha o app e dispara o instalador. A instalacao automatica espera o PC
+    ficar parado; a pedida pelo menu so espera o VozFlow desocupar.
     """
 
     _baixado = QtCore.Signal(str, str, bool)   # versao, caminho, pedido pelo menu
     _resultado = QtCore.Signal(str, bool)      # mensagem, pedido pelo menu
     aviso = QtCore.Signal(str)                 # mensagem para a bandeja
 
-    def __init__(self, cfg, ocupado, ao_instalar, parent=None, ativo=None):
+    def __init__(self, cfg, ocupado, ao_instalar, parent=None, ativo=None, pasta: Path = PASTA):
         super().__init__(parent)
         self.cfg = cfg
         self._ocupado = ocupado
         self._ao_instalar = ao_instalar
+        self.pasta = pasta
         # So o executavel instalado se atualiza; do codigo fonte, nunca.
         self.ativo = getattr(sys, "frozen", False) if ativo is None else ativo
         self._thread: threading.Thread | None = None
@@ -227,12 +290,43 @@ class Atualizador(QtCore.QObject):
         if not self.ativo:
             return
         try:
-            limpar_antigos()
+            limpar_antigos(self.pasta)
         except OSError:
             pass
         QtCore.QTimer.singleShot(PRIMEIRA_CONSULTA_MS, self._consulta_automatica)
         self._timer_consulta.start(INTERVALO_MS)
 
+    # -- o que aconteceu desde a ultima abertura -------------------------
+    def conferir_abertura(self) -> str | None:
+        """Mensagem para a bandeja nesta abertura, se houver.
+
+        Atualizou: "atualizado para X". Abriu numa versao MENOR que a da
+        ultima tentativa: a instalacao falhou - essa versao deixa de ser
+        instalada sozinha (so pelo menu), senao o app fecharia de novo a cada
+        minuto parado, sem nunca conseguir.
+        """
+        if not self.ativo:
+            return None
+        estado = ler_estado(self.pasta)
+        agora = versao(__version__)
+        msg = None
+        tentada = estado.get("tentada") or {}
+        v_tentada = versao(tentada.get("versao"))
+        if v_tentada and agora:
+            if _maior(v_tentada, agora):
+                estado["falhou"] = tentada.get("versao")
+                msg = (f"A atualizacao para a versao {tentada.get('versao')} nao terminou. "
+                       "Use 'Procurar atualizacao agora' no menu para tentar de novo.")
+            estado.pop("tentada", None)
+        vista = versao(estado.get("vista"))
+        if msg is None and vista and agora and _maior(agora, vista):
+            msg = f"VozFlow atualizado para a versao {__version__}."
+        if estado.get("vista") != __version__ or msg:
+            estado["vista"] = __version__
+            gravar_estado(estado, self.pasta)
+        return msg
+
+    # -- consulta e download ---------------------------------------------
     def _consulta_automatica(self) -> None:
         if self.cfg.get("atualizar_auto", True):
             self.verificar()
@@ -245,13 +339,14 @@ class Atualizador(QtCore.QObject):
             return
         if not pedido and not self.cfg.get("atualizar_auto", True):
             return
-        if pedido and self.pendente:
+        if pedido:
             self._imediato = True
-            self._timer_instalar.start(2000)
-            return
+            if self.pendente:
+                self._timer_instalar.start(2000)
+                return
         if self._thread is not None and self._thread.is_alive():
             if pedido:
-                self.aviso.emit("Ja estou baixando a atualizacao.")
+                self.aviso.emit("Ja estou baixando a atualizacao; instalo assim que terminar.")
             return
         self._thread = threading.Thread(target=self._trabalho, args=(pedido,), daemon=True)
         self._thread.start()
@@ -262,14 +357,16 @@ class Atualizador(QtCore.QObject):
             if not e_mais_nova(lanc):
                 self._resultado.emit(f"Voce ja esta na versao mais nova ({__version__}).", pedido)
                 return
+            if not pedido and ler_estado(self.pasta).get("falhou") == lanc.versao:
+                return          # falhou antes: so tenta de novo se pedirem pelo menu
             if pedido:
                 self._resultado.emit(f"Baixando a versao {lanc.versao}...", True)
-            caminho = baixar(lanc)
-            if caminho is None:
-                self._resultado.emit("A atualizacao baixada nao conferiu; tento de novo mais tarde.",
-                                     pedido)
-                return
+            caminho = baixar(lanc, self.pasta)
             self._baixado.emit(lanc.versao, str(caminho), pedido)
+        except SemVersaoPublicada:
+            self._resultado.emit(f"Voce ja esta na versao mais nova ({__version__}).", pedido)
+        except ValueError as exc:
+            self._resultado.emit(f"A atualizacao baixada foi descartada: {exc}.", pedido)
         except Exception as exc:  # noqa: BLE001 - sem internet, GitHub fora: tenta depois
             self._resultado.emit(f"Nao consegui procurar atualizacao ({exc}).", pedido)
 
@@ -282,14 +379,28 @@ class Atualizador(QtCore.QObject):
         self._imediato = self._imediato or pedido
         self._timer_instalar.start(2000 if self._imediato else 30_000)
 
+    # -- instalacao --------------------------------------------------------
     def _tentar_instalar(self) -> None:
         if not self.pendente or self._ocupado():
             return
-        if not self._imediato and segundos_parado() < PARADO_PARA_INSTALAR_S:
-            return
-        if not self._imediato and not self.cfg.get("atualizar_auto", True):
-            return
+        if not self._imediato:
+            if not self.cfg.get("atualizar_auto", True):
+                return
+            if segundos_parado() < PARADO_PARA_INSTALAR_S:
+                return
         self._timer_instalar.stop()
         versao_nova, caminho = self.pendente
         self.pendente = None
+        estado = ler_estado(self.pasta)
+        estado["tentada"] = {"versao": versao_nova}
+        estado.pop("falhou", None)
+        gravar_estado(estado, self.pasta)
         self._ao_instalar(versao_nova, Path(caminho))
+
+    def adiar(self, versao_nova: str, caminho) -> None:
+        """O app nao pode fechar agora: volta a esperar, sem contar tentativa."""
+        estado = ler_estado(self.pasta)
+        estado.pop("tentada", None)
+        gravar_estado(estado, self.pasta)
+        self.pendente = (versao_nova, str(caminho))
+        self._timer_instalar.start(2000 if self._imediato else 30_000)

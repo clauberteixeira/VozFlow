@@ -75,7 +75,6 @@ DEFAULTS: dict = {
     "historico_dias": 7,
     # Versao nova no GitHub: baixa, instala quando o PC estiver parado e reabre.
     "atualizar_auto": True,
-    "versao_vista": "",       # ultima versao aberta: avisa "atualizado para X"
     # Versao do formato: arquivo sem ela e de antes do modelo "auto" (ver load).
     "config_versao": 3,
 }

@@ -129,8 +129,7 @@ Trocar de modelo dispara um novo download na primeira execução. Todos ficam em
 | `log_transcricoes` | `true` | Grava tudo em `%APPDATA%\VozFlow\transcricoes.txt`. |
 | `historico_max_mb` | `5` | Enquanto o histórico tiver menos que isso, **nada é apagado** (5 MB são anos de ditado). Passou, ele fica só com os últimos `historico_dias`. `0` desliga a limpeza. |
 | `historico_dias` | `7` | Quantos dias o histórico mantém quando passa de `historico_max_mb`. |
-| `atualizar_auto` | `true` | Versão nova no GitHub: baixa, confere o SHA-256 e instala quando o PC está parado há 1 minuto (fecha e reabre sozinho). `false` = só pelo menu **Procurar atualização agora**. |
-| `versao_vista` | `""` | Última versão aberta — serve para avisar *"atualizado para X"* uma vez. Não precisa mexer. |
+| `atualizar_auto` | `true` | Versão nova no GitHub: baixa, confere a assinatura e instala quando o PC está parado há 1 minuto (fecha e reabre sozinho). `false` = só pelo menu **Procurar atualização agora**. |
 
 Posições aceitas em `overlay_posicao`:
 

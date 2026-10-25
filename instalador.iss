@@ -43,7 +43,8 @@ Source: "README.md";      DestDir: "{app}"; Flags: ignoreversion
 [Icons]
 Name: "{group}\{#Nome}";                 Filename: "{app}\{#Exe}"
 Name: "{group}\Desinstalar {#Nome}";     Filename: "{uninstallexe}"
-Name: "{autodesktop}\{#Nome}";           Filename: "{app}\{#Exe}"; Tasks: desktopicon
+; numa atualizacao nao recria o atalho que a pessoa tenha apagado
+Name: "{autodesktop}\{#Nome}";           Filename: "{app}\{#Exe}"; Tasks: desktopicon; Check: not ReabrirDepois
 
 [Run]
 Filename: "{app}\{#Exe}"; Description: "Abrir o {#Nome} agora"; Flags: nowait postinstall skipifsilent
@@ -51,6 +52,10 @@ Filename: "{app}\{#Exe}"; Description: "Abrir o {#Nome} agora"; Flags: nowait po
 Filename: "{app}\{#Exe}"; Flags: nowait; Check: ReabrirDepois
 
 [Code]
+var
+  Instalou: Boolean;        // chegou ao fim da copia dos arquivos
+  AppNaoFechou: Boolean;    // desistiu porque o VozFlow continuou aberto
+
 function ReabrirDepois(): Boolean;
 begin
   Result := ExpandConstant('{param:REABRIR|0}') = '1';
@@ -60,9 +65,11 @@ function InitializeSetup(): Boolean;
 var
   espera: Integer;
 begin
+  Result := True;
   // Atualizacao automatica: o VozFlow dispara este instalador e fecha logo em
   // seguida. Copiar com ele ainda aberto falharia (arquivos em uso): espera a
-  // trava de instancia unica (main.py) sumir, ate 30 s.
+  // trava de instancia unica (main.py) sumir, ate 30 s. Se nao sumir, desiste
+  // sem tocar em nada - o VozFlow antigo segue aberto e funcionando.
   if ReabrirDepois() then
   begin
     espera := 0;
@@ -71,8 +78,29 @@ begin
       Sleep(500);
       espera := espera + 1;
     end;
+    if CheckForMutexes('Global\VozFlow_Singleton') then
+    begin
+      Log('Atualizacao: o VozFlow nao fechou em 30 s; desistindo.');
+      AppNaoFechou := True;
+      Result := False;
+    end;
   end;
-  Result := True;
+end;
+
+procedure DeinitializeSetup();
+var
+  voltar: String;
+  codigo: Integer;
+begin
+  // A atualizacao falhou no meio (disco cheio, antivirus...): o VozFlow ja
+  // tinha fechado e o [Run] que reabre nao chegou a rodar. Abre de novo o que
+  // estava instalado, em vez de deixar o usuario sem o app.
+  voltar := ExpandConstant('{param:VOLTAR|}');
+  if ReabrirDepois() and not Instalou and not AppNaoFechou and (voltar <> '') and FileExists(voltar) then
+  begin
+    Log('Atualizacao nao terminou; reabrindo ' + voltar);
+    Exec(voltar, '', '', SW_SHOWNORMAL, ewNoWait, codigo);
+  end;
 end;
 
 function CaminhoStartup(): String;
@@ -96,6 +124,12 @@ procedure CurStepChanged(passo: TSetupStep);
 begin
   if passo = ssPostInstall then
   begin
+    Instalou := True;
+    // Numa atualizacao silenciosa a "tarefa" e a do ULTIMO instalador, mas o
+    // proprio app liga e desliga o VozFlow.vbs depois disso (Configuracoes ->
+    // Geral). Mexer aqui desfaria a escolha feita no app.
+    if ReabrirDepois() then
+      Exit;
     if WizardIsTaskSelected('startup') then
       GravarStartup()
     else

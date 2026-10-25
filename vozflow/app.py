@@ -19,7 +19,6 @@ from . import APP_NAME, __version__, config, janela
 from .atalhos import GuardaNumerico, bonito, soltar_teclas_presas
 from .atualizador import Atualizador
 from .atualizador import instalar as instalar_atualizacao
-from .atualizador import versao as versao_de
 from .inserter import apertar_enter, copiar, digitar, entregar
 from .overlay import Overlay
 from .transcriber import LiveTranscriber
@@ -288,18 +287,29 @@ class VozFlow(QtCore.QObject):
 
     # -- atualizacao automatica -------------------------------------------
     def _ocupado_para_atualizar(self) -> bool:
-        return bool(self.engine.recording or getattr(self, "_dlg_config", None) is not None)
+        """Fechar agora cortaria algo: gravacao, a transcricao final ou a
+        digitacao do texto (`recording` ja e False enquanto o fim transcreve),
+        texto esperando o foco voltar, download do modelo, configuracoes."""
+        return bool(self.engine.recording or self._quer_gravar or self._entregando
+                    or self._segurando or self._baixando
+                    or getattr(self, "_dlg_config", None) is not None)
 
     def _instalar_atualizacao(self, versao: str, caminho) -> None:
-        """Fecha o VozFlow e deixa o instalador trocar os arquivos e reabrir."""
-        self.tray.showMessage(
-            APP_NAME, f"Atualizando para a versao {versao}. O VozFlow volta em instantes.",
-            QtWidgets.QSystemTrayIcon.Information, 4000,
-        )
+        """Avisa, e 1,5 s depois fecha o VozFlow e deixa o instalador trocar
+        os arquivos e reabrir. A espera e para o aviso aparecer antes de a
+        bandeja sumir; por isso a conferencia de "ocupado" e refeita no fim."""
+        self._aviso_atualizacao(f"Atualizando para a versao {versao}. O VozFlow volta em instantes.")
+        QtCore.QTimer.singleShot(1500, lambda: self._fechar_para_atualizar(versao, caminho))
+
+    def _fechar_para_atualizar(self, versao: str, caminho) -> None:
+        if self._ocupado_para_atualizar():       # comecou a ditar no meio-tempo
+            self.atualizador.adiar(versao, caminho)
+            return
         try:
-            instalar_atualizacao(caminho)
+            instalar_atualizacao(caminho, voltar=sys.executable)
         except OSError as exc:
             self._aviso_atualizacao(f"Nao consegui abrir o instalador da atualizacao ({exc}).")
+            self.atualizador.adiar(versao, caminho)
             return
         self.encerrar()
 
@@ -307,21 +317,10 @@ class VozFlow(QtCore.QObject):
         self.tray.showMessage(APP_NAME, msg, QtWidgets.QSystemTrayIcon.Information, 5000)
 
     def _avisar_se_atualizou(self) -> None:
-        """Primeira abertura depois de uma versao nova: conta na bandeja."""
-        if not self.atualizador.ativo:
-            return
-        vista = str(self.cfg.get("versao_vista") or "")
-        if vista == __version__:
-            return
-        antes, agora = versao_de(vista), versao_de(__version__)
-        if antes and agora and agora > antes:
-            QtCore.QTimer.singleShot(1500, lambda: self._aviso_atualizacao(
-                f"VozFlow atualizado para a versao {__version__}."))
-        self.cfg["versao_vista"] = __version__
-        try:
-            self.cfg.save()
-        except OSError:
-            pass
+        """Abertura depois de atualizar (ou de uma atualizacao que falhou)."""
+        msg = self.atualizador.conferir_abertura()
+        if msg:
+            QtCore.QTimer.singleShot(1500, lambda: self._aviso_atualizacao(msg))
 
     # -- interface ------------------------------------------------------
     def _montar_tray(self) -> None:

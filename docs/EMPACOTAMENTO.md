@@ -144,18 +144,32 @@ versão própria, testada à parte.
    `VozFlow-<versão>-instalador.exe.sha256` que o `gerar-instalador.bat` grava
    ao lado dele; cole também o hash no texto da Release. Quem baixa confere
    que o arquivo é exatamente o que você gerou.
-8. Publique a **mesma Release** (mesma tag, mesmos dois anexos) no repositório
-   público [VozFlow-releases](https://github.com/clauberteixeira/VozFlow-releases):
+8. **Assine** o instalador:
+
+   ```bat
+   .venv\Scripts\python ferramentas\assinar.py instalador\VozFlow-<versão>-instalador.exe
+   ```
+
+   Grava o `VozFlow-<versão>-instalador.exe.sig` ao lado. A chave privada fica
+   em `%USERPROFILE%\.vozflow-assinatura\` (criada uma vez com
+   `ferramentas\assinar.py gerar-chave`), **fora do repositório e do GitHub**.
+   Guarde uma cópia dela num lugar seguro: sem ela os apps já instalados não
+   aceitam versões novas (seria preciso reinstalar à mão uma versão com chave
+   nova).
+9. Publique a **mesma Release** com os **três** anexos no repositório público
+   [VozFlow-releases](https://github.com/clauberteixeira/VozFlow-releases):
 
    ```bat
    gh release create v<versão> instalador\VozFlow-<versão>-instalador.exe ^
      instalador\VozFlow-<versão>-instalador.exe.sha256 ^
+     instalador\VozFlow-<versão>-instalador.exe.sig ^
      --repo clauberteixeira/VozFlow-releases --title "VozFlow <versão>" --notes-file notas.md
    ```
 
    É dali que o VozFlow instalado se atualiza (`vozflow/atualizador.py`): ele
-   só aceita um instalador `VozFlow-<versão>-instalador.exe` com o `.sha256`
-   ao lado, baixados da própria Release desse repositório. Release em
+   só aceita um instalador `VozFlow-<versão>-instalador.exe` com o `.sig` ao
+   lado, baixados do endereço exato da Release desse repositório, e confere a
+   assinatura com a chave pública embutida (`CHAVE_PUBLICA`). Release em
    rascunho ou marcada como pré-lançamento é ignorada — use isso para testar
    antes de soltar para todo mundo.
 
@@ -208,4 +222,4 @@ de volta.
 - [ ] "Iniciar com o Windows" liga e desliga sem sobrar `VozFlow.vbs` órfão
 - [ ] O desinstalador remove tudo e respeita a escolha sobre os dados
 - [ ] Tag criada e Release publicada com o instalador anexado
-- [ ] A mesma Release publicada no VozFlow-releases (senão ninguém recebe a atualização)
+- [ ] Instalador assinado (`.sig`) e a mesma Release publicada no VozFlow-releases com os três anexos (senão ninguém recebe a atualização)

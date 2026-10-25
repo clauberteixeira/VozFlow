@@ -11,12 +11,20 @@ Versionamento [semântico](https://semver.org/lang/pt-BR/).
 
 - **Saiu versão nova, ele atualiza sem você fazer nada.** Ao abrir e a cada 6
   horas, o VozFlow consulta o GitHub; havendo versão nova, baixa o instalador
-  em segundo plano, confere o SHA-256 publicado junto e instala quando o PC
-  está parado há 1 minuto e você não está ditando — fecha, atualiza em
-  silêncio (sem pedir administrador) e abre de novo. Depois avisa na bandeja:
+  em segundo plano, confere a **assinatura digital** da versão e instala
+  quando o PC está parado há 1 minuto e você não está ditando — fecha,
+  atualiza em silêncio (sem pedir administrador) e abre de novo. Depois avisa na bandeja:
   *"VozFlow atualizado para a versão X"*. Ligado por padrão; desliga em
   Configurações → Geral. No menu da bandeja, **Procurar atualização agora**
   baixa e instala na hora.
+- **Seguro contra instalador trocado.** Cada versão é assinada com uma chave
+  que fica só no PC de quem publica, fora do GitHub; o app recusa e apaga o
+  que a assinatura não confirmar — mesmo que alguém invada a conta do GitHub.
+- **Não fica sem o app se algo der errado.** Se a instalação falhar no meio,
+  o instalador reabre a versão que já estava instalada; se o VozFlow não
+  fechar, ele desiste sem mexer em nada. Uma versão que falhou não é tentada
+  sozinha de novo (só pelo menu). A atualização não mexe no "Iniciar com o
+  Windows" escolhido no app nem recria o atalho da área de trabalho.
 - As versões saem num repositório público só de instaladores,
   [VozFlow-releases](https://github.com/clauberteixeira/VozFlow-releases): o
   do código é privado, e o GitHub não entrega Release de repositório privado

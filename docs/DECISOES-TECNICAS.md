@@ -330,14 +330,33 @@ versões são publicadas também em
 [VozFlow-releases](https://github.com/clauberteixeira/VozFlow-releases), que
 só tem os instaladores.
 
-O app baixa o `.sha256` e o instalador da própria Release, recusa anexos de
-outro endereço e apaga o arquivo se o hash não bater. O instalador roda com
+O SHA-256 publicado ao lado do instalador só prova que o arquivo chegou
+inteiro: quem subisse um instalador na Release (conta ou token do GitHub
+vazado) subiria junto o hash certo, e todo VozFlow o instalaria sozinho, em
+silêncio. Por isso cada versão é **assinada** com Ed25519
+(`vozflow/assinatura.py`, código de referência da RFC 8032 em Python puro,
+conferido com os vetores de teste da RFC — sem acrescentar dependência ao
+executável). A chave privada fica só no PC de quem publica; a pública vai
+embutida no app. A mensagem assinada é o nome do instalador (com a versão) e
+o SHA-256 dele, então a assinatura de uma versão não serve para outra.
+
+O app recusa anexos fora do endereço exato da Release, confere o tamanho e
+apaga o arquivo se a assinatura não bater. O instalador roda com
 `/VERYSILENT /REABRIR=1`: o `[Code]` do `instalador.iss` espera a trava de
 instância única (`Global\VozFlow_Singleton`) sumir antes de copiar — com o
 app aberto os arquivos estariam em uso — e o `[Run]` com `Check:
 ReabrirDepois` abre a versão nova no fim. Conferido com um instalador
 descartável com o mesmo código: esperou a trava sair (3,0 s), instalou 0,5 s
-depois e reabriu; sem `/REABRIR=1` não reabre. A instalação automática espera
+depois e reabriu; sem `/REABRIR=1` não reabre. Se o VozFlow não fechar em
+30 s, o instalador desiste sem tocar em nada (conferido: código 1, nada
+instalado); se falhar no meio da cópia, o `DeinitializeSetup` reabre a versão
+antiga, cujo caminho o app passa em `/VOLTAR` (conferido com uma falha
+simulada). O app anota a versão tentada num arquivo próprio
+(`%LOCALAPPDATA%\VozFlow\atualizacao\estado.json`, nunca no `config.json`) e,
+se abrir numa versão menor, não tenta aquela de novo sozinho — senão fecharia
+a cada minuto parado. Numa atualização o instalador não mexe no
+`VozFlow.vbs`: a "tarefa" lembrada é a do último instalador, mas o app liga
+e desliga o início com o Windows depois disso. A instalação automática espera
 o PC parado há 1 minuto (`GetLastInputInfo`): a própria digitação do VozFlow
 conta como uso, então ela nunca cai no meio de um texto.
 
