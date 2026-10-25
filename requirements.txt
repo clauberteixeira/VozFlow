@@ -4,10 +4,12 @@ numpy>=1.26,<3
 PySide6-Essentials>=6.7
 keyboard>=0.13.5
 pyperclip>=1.9
-requests>=2.31
+requests>=2.32.4
 webrtcvad-wheels>=2.0.14
 # Pisos de seguranca de dependencias indiretas (nao sao usadas direto pelo
 # VozFlow, mas vao dentro do executavel): certifi com a raiz emSign afetada
-# removida (PYSEC-2026-4320) e urllib3 sem PYSEC-2026-4175/4176/4177.
+# removida (PYSEC-2026-4320), urllib3 sem PYSEC-2026-4175/4176/4177 (entra via
+# requests) e filelock sem CVE-2026-112907/112913/112940 (via huggingface_hub).
 certifi>=2026.10.19
 urllib3>=2.8.0
+filelock>=4.2.1

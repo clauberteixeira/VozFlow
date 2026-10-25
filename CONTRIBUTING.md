@@ -99,7 +99,8 @@ aponta `VOZFLOW_CONFIG_DIR` para uma pasta temporária.
 
 Teste marcado `xfail` documenta um defeito conhecido (o motivo cita o achado);
 quando a correção entra, ele passa a falhar como "XPASS" e a marca sai. O CI
-(`.github/workflows/testes.yml`) roda a mesma suíte no Windows a cada push.
+(`.github/workflows/testes.yml`) roda a mesma suíte no Windows a cada push na
+`main` e em cada pull request.
 
 O mínimo antes de abrir um PR:
 

@@ -8,7 +8,9 @@ por um duble que so anota o que teria acontecido.
 
 from __future__ import annotations
 
+import atexit
 import os
+import shutil
 import sys
 import tempfile
 import threading
@@ -17,8 +19,14 @@ from pathlib import Path
 
 # Antes de importar qualquer modulo do vozflow: config.py le a variavel na
 # importacao, e sem ela o teste gravaria por cima da config real do usuario.
-os.environ["VOZFLOW_CONFIG_DIR"] = tempfile.mkdtemp(prefix="vozflow-testes-")
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+_PASTA_CONFIG = tempfile.mkdtemp(prefix="vozflow-testes-")
+atexit.register(shutil.rmtree, _PASTA_CONFIG, True)
+os.environ["VOZFLOW_CONFIG_DIR"] = _PASTA_CONFIG
+# Atribuido, nao setdefault: com QT_QPA_PLATFORM=windows no ambiente cada
+# teste poria um icone real na bandeja e soltaria balao de "Pronto".
+os.environ["QT_QPA_PLATFORM"] = "offscreen"
+# Com VOZFLOW_DEBUG herdado, o app gravaria o texto dos testes em %TEMP%.
+os.environ.pop("VOZFLOW_DEBUG", None)
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -32,6 +40,22 @@ from vozflow import config  # noqa: E402
 def qapp():
     app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
     yield app
+
+
+@pytest.fixture(autouse=True)
+def timers_terminam_dentro_do_teste(monkeypatch):
+    """Espera os threading.Timer do teste antes de desfazer os dubles.
+
+    O colar() agenda a restauracao do clipboard para 0,8 s depois. Se o teste
+    acabasse antes, o monkeypatch ja teria devolvido o pyperclip real e o
+    Timer escreveria na area de transferencia de verdade do usuario.
+    (Depende de monkeypatch para ser desmontada ANTES dele.)
+    """
+    antes = set(threading.enumerate())
+    yield
+    for t in threading.enumerate():
+        if t not in antes and isinstance(t, threading.Timer):
+            t.join(timeout=5)
 
 
 @pytest.fixture
@@ -114,12 +138,16 @@ class JanelaFalsa:
 
     def __init__(self, foco: int = 0x100):
         self.foco = foco
-        self.existentes = {0x100, 0x200, 0x300}
+        self.existentes = {0x100, 0x200, 0x300, 0x900}
+        self.sistema = {0x900}             # barra de tarefas / bandeja
         self.restaurar_ok = True
         self.restauradas: list[int] = []
 
     def atual(self):
         return self.foco
+
+    def alvo_valido(self, hwnd):
+        return bool(hwnd) and hwnd not in self.sistema
 
     def existe(self, hwnd):
         return bool(hwnd) and hwnd in self.existentes
