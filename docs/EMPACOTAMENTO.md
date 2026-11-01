@@ -136,15 +136,13 @@ versão própria, testada à parte.
    `instalador.iss` (`Versao`).
 2. Atualize o [CHANGELOG](../CHANGELOG.md).
 3. `python -m pytest -q` passa.
-4. `gerar-instalador.bat`.
+4. `gerar-exe.bat` e depois `gerar-instalador.bat`. **Nessa ordem:** o
+   `gerar-instalador.bat` só empacota se o `dist\` não existir, então sozinho
+   ele aproveita o executável da versão anterior e o instalador novo sai com o
+   programa velho.
 5. Teste o instalador numa máquina limpa, ou pelo menos desinstale e reinstale.
 6. `git tag -a v<versão> -m "VozFlow <versão>"` e `git push --tags`.
-7. Crie uma **Release** no GitHub anexando o
-   `instalador\VozFlow-<versão>-instalador.exe` **e** o
-   `VozFlow-<versão>-instalador.exe.sha256` que o `gerar-instalador.bat` grava
-   ao lado dele; cole também o hash no texto da Release. Quem baixa confere
-   que o arquivo é exatamente o que você gerou.
-8. **Assine** o instalador:
+7. **Assine** o instalador:
 
    ```bat
    .venv\Scripts\python ferramentas\assinar.py instalador\VozFlow-<versão>-instalador.exe
@@ -156,19 +154,21 @@ versão própria, testada à parte.
    Guarde uma cópia dela num lugar seguro: sem ela os apps já instalados não
    aceitam versões novas (seria preciso reinstalar à mão uma versão com chave
    nova).
-9. Publique a **mesma Release** com os **três** anexos no repositório público
-   [VozFlow-releases](https://github.com/clauberteixeira/VozFlow-releases):
+8. Crie a **Release** com os **três** anexos: o instalador, o `.sha256` que o
+   `gerar-instalador.bat` grava ao lado dele e o `.sig`. Cole também o hash no
+   texto da Release, para quem baixa conferir que o arquivo é exatamente o que
+   você gerou:
 
    ```bat
    gh release create v<versão> instalador\VozFlow-<versão>-instalador.exe ^
      instalador\VozFlow-<versão>-instalador.exe.sha256 ^
      instalador\VozFlow-<versão>-instalador.exe.sig ^
-     --repo clauberteixeira/VozFlow-releases --title "VozFlow <versão>" --notes-file notas.md
+     --repo clauberteixeira/VozFlow --title "VozFlow <versão>" --notes-file notas.md
    ```
 
-   É dali que o VozFlow instalado se atualiza (`vozflow/atualizador.py`): ele
-   só aceita um instalador `VozFlow-<versão>-instalador.exe` com o `.sig` ao
-   lado, baixados do endereço exato da Release desse repositório, e confere a
+   É daí que o VozFlow instalado se atualiza (`vozflow/atualizador.py`): ele só
+   aceita um instalador `VozFlow-<versão>-instalador.exe` com o `.sig` ao lado,
+   baixados do endereço exato da Release deste repositório, e confere a
    assinatura com a chave pública embutida (`CHAVE_PUBLICA`). Release em
    rascunho ou marcada como pré-lançamento é ignorada — use isso para testar
    antes de soltar para todo mundo.
@@ -221,5 +221,5 @@ de volta.
 - [ ] O instalador instala, cria o atalho e aparece em Aplicativos Instalados
 - [ ] "Iniciar com o Windows" liga e desliga sem sobrar `VozFlow.vbs` órfão
 - [ ] O desinstalador remove tudo e respeita a escolha sobre os dados
-- [ ] Tag criada e Release publicada com o instalador anexado
-- [ ] Instalador assinado (`.sig`) e a mesma Release publicada no VozFlow-releases com os três anexos (senão ninguém recebe a atualização)
+- [ ] Tag criada
+- [ ] Instalador assinado (`.sig`) e Release publicada com os três anexos (sem o `.sig`, ninguém recebe a atualização)

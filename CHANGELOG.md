@@ -5,6 +5,20 @@ Versionamento [semântico](https://semver.org/lang/pt-BR/).
 
 ---
 
+## [1.2.7] — 2026-11-01
+
+### Mudado — um repositório só
+
+- **O VozFlow passa a se atualizar por este repositório.** As versões saíam
+  também no `VozFlow-releases`, criado quando o código ainda era privado. Com o
+  código público, ele perdeu o motivo de existir. Esta versão saiu nos dois
+  lugares para chegar sozinha a quem está na 1.2.4, 1.2.5 ou 1.2.6; as próximas
+  saem só aqui.
+- **README com instalação passo a passo:** do download ao primeiro ditado, com
+  o que fazer se algo não funcionar e como desinstalar.
+
+---
+
 ## [1.2.6] — 2026-10-25
 
 ### Corrigido — frases que você não falou
@@ -60,9 +74,9 @@ Versionamento [semântico](https://semver.org/lang/pt-BR/).
   sozinha de novo (só pelo menu). A atualização não mexe no "Iniciar com o
   Windows" escolhido no app nem recria o atalho da área de trabalho.
 - As versões saem num repositório público só de instaladores,
-  [VozFlow-releases](https://github.com/clauberteixeira/VozFlow-releases): o
-  do código é privado, e o GitHub não entrega Release de repositório privado
-  sem login.
+  `VozFlow-releases`: o do código é privado, e o GitHub não entrega Release de
+  repositório privado sem login. (Até a 1.2.7, que voltou a usar um repositório
+  só.)
 
 ---
 
@@ -314,6 +328,7 @@ para entender como o app chegou ao estado atual.
 
 ---
 
+[1.2.7]: https://github.com/clauberteixeira/VozFlow/releases/tag/v1.2.7
 [1.2.6]: https://github.com/clauberteixeira/VozFlow/releases/tag/v1.2.6
 [1.2.5]: https://github.com/clauberteixeira/VozFlow/releases/tag/v1.2.5
 [1.2.4]: https://github.com/clauberteixeira/VozFlow/releases/tag/v1.2.4

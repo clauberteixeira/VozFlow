@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <img alt="versão" src="https://img.shields.io/badge/vers%C3%A3o-1.2.6-2ea44f">
+  <img alt="versão" src="https://img.shields.io/badge/vers%C3%A3o-1.2.7-2ea44f">
   <img alt="plataforma" src="https://img.shields.io/badge/plataforma-Windows%2010%2F11-0078d4">
   <img alt="python" src="https://img.shields.io/badge/python-3.12-3776ab">
   <img alt="offline" src="https://img.shields.io/badge/100%25-offline-8a2be2">
@@ -20,6 +20,8 @@
 
 <p align="center">
   <a href="https://github.com/clauberteixeira/VozFlow/releases/latest"><b>⬇ Baixar a versão mais recente</b></a>
+  &nbsp;·&nbsp;
+  <a href="#instalação-passo-a-passo"><b>Como instalar, passo a passo</b></a>
 </p>
 
 ---
@@ -48,8 +50,11 @@ O **VozFlow** resolve isso de um jeito simples:
 ## Índice
 
 - [O que ele faz](#o-que-ele-faz)
-- [Instalação](#instalação)
+- [Como funciona](#como-funciona)
+- [Instalação passo a passo](#instalação-passo-a-passo)
 - [Como usar](#como-usar)
+- [Se algo não funcionar](#se-algo-não-funcionar)
+- [Desinstalar](#desinstalar)
 - [Atualização automática](#atualização-automática)
 - [Como o texto aparece enquanto você fala](#como-o-texto-aparece-enquanto-você-fala)
 - [Voz de fundo](#voz-de-fundo)
@@ -80,29 +85,102 @@ O **VozFlow** resolve isso de um jeito simples:
 
 ---
 
-## Instalação
+## Como funciona
 
-1. Baixe o `VozFlow-<versão>-instalador.exe` da
-   **[versão mais recente](https://github.com/clauberteixeira/VozFlow/releases/latest)**
-   e execute.
-2. *"O Windows protegeu o computador"?* O instalador ainda não tem assinatura
-   digital do Windows. Clique em **Mais informações → Executar assim mesmo**.
-3. Na primeira abertura, o modelo de reconhecimento é baixado uma única vez
-   (1,6 GB com placa NVIDIA, ~145 MB sem), com o progresso na janelinha.
+1. **Você aperta o atalho.** O VozFlow fica quieto na bandeja do Windows, ao
+   lado do relógio, e começa a ouvir o microfone.
+2. **A voz vira texto no seu computador.** O modelo de reconhecimento de voz
+   (Whisper) roda na sua placa de vídeo ou, se ela não for NVIDIA, no
+   processador.
+3. **O texto é escrito onde o cursor está,** como se você estivesse digitando,
+   em qualquer programa.
+4. **Você aperta o atalho de encerrar.** O VozFlow escreve o que faltava e volta
+   a ficar quieto.
 
-O instalador **não pede administrador**, instala na pasta do seu usuário e
-aparece em Aplicativos Instalados para desinstalar. Depois disso você não
-precisa mais instalar nada: as versões novas chegam sozinhas.
+A internet só é usada para baixar o modelo na primeira abertura e para procurar
+versões novas. Sua voz nunca sai do computador.
 
-> **Sem placa NVIDIA?** Funciona: o app escolhe sozinho um modelo menor, que
-> roda bem na CPU.
+---
 
-Requisitos, instalação manual e rodar a partir do código em
+## Instalação passo a passo
+
+Não precisa instalar Python nem nada além do VozFlow. O download total é de
+cerca de 2 GB com placa NVIDIA e 700 MB sem ela, uma vez só.
+
+| Você vai precisar de | |
+|---|---|
+| **Sistema** | Windows 10 ou 11, 64 bits |
+| **Espaço livre** | 3 GB |
+| **Memória** | 4 GB (8 GB é melhor) |
+| **Microfone** | Qualquer um: o do notebook, um fone ou um headset |
+| **Placa de vídeo** | Opcional. Com placa NVIDIA o texto sai mais rápido; sem ela, o VozFlow escolhe sozinho um modelo menor, que roda no processador |
+
+### 1. Baixe o instalador
+
+1. Abra a **[página da versão mais recente](https://github.com/clauberteixeira/VozFlow/releases/latest)**.
+2. Desça até **Assets**, no fim da página.
+3. Clique em **`VozFlow-<versão>-instalador.exe`** (cerca de 520 MB) e espere o
+   download terminar.
+
+Os outros arquivos da lista não são necessários: `.sha256` e `.sig` servem para
+conferir o instalador, e `Source code` é o código-fonte.
+
+### 2. Abra o instalador
+
+Dê dois cliques no arquivo baixado.
+
+Se aparecer a tela azul **"O Windows protegeu o computador"**, clique em
+**Mais informações** e depois em **Executar assim mesmo**. O aviso aparece
+porque o instalador ainda não tem o certificado de assinatura do Windows. Se
+quiser, dá para [conferir que o arquivo é o original](docs/INSTALACAO.md#opção-1--instalador-uso-normal).
+
+### 3. Avance pelas telas
+
+O instalador **não pede senha de administrador**: ele instala só para o seu
+usuário.
+
+1. **Local de destino:** deixe como está e clique em **Avançar**.
+2. **Tarefas adicionais:** as duas opções já vêm marcadas. *Criar atalho na área
+   de trabalho* e *Iniciar o VozFlow junto com o Windows*, que deixa o app
+   pronto sempre que você ligar o PC. Desmarque o que não quiser e clique em
+   **Avançar**.
+3. Clique em **Instalar** e espere a cópia dos arquivos.
+4. Na última tela, deixe **Abrir o VozFlow agora** marcado e clique em
+   **Concluir**.
+
+### 4. Espere o modelo baixar
+
+O VozFlow **não abre uma janela**: ele fica na bandeja do sistema, ao lado do
+relógio, como um ícone de microfone. Se não o encontrar, clique na setinha
+**^** da barra de tarefas.
+
+Na primeira abertura ele baixa o modelo de reconhecimento de voz (1,6 GB com
+placa NVIDIA, cerca de 145 MB sem). Uma janelinha mostra o progresso. Isso só
+acontece uma vez. Quando terminar, aparece um aviso começando com **"Pronto."**.
+
+### 5. Dite o primeiro texto
+
+1. Abra o Bloco de Notas, ou qualquer lugar onde se escreve, e clique no campo.
+2. Aperte `Ctrl + Alt + G`.
+3. Fale normalmente. O texto começa a aparecer em cerca de 2 segundos.
+4. Aperte `Ctrl + Alt + S` para encerrar. O que faltava é escrito no campo.
+
+Pronto: não há mais nada para instalar. As versões novas chegam sozinhas.
+
+### 6. Ajuste ao seu microfone (opcional)
+
+Se o VozFlow cortar palavras ou escrever sons de fundo, ensine a ele a sua voz:
+clique com o botão direito no ícone da bandeja e vá em **Configurações →
+Microfone → Calibrar com a minha voz**.
+
+Para instalar à mão ou rodar a partir do código, veja
 **[docs/INSTALACAO.md](docs/INSTALACAO.md)**.
 
 ---
 
 ## Como usar
+
+O dia a dia cabe em três passos: **clique no campo, aperte o atalho e fale.**
 
 | Atalho (padrão) | O que faz |
 |---|---|
@@ -123,10 +201,35 @@ Mais em **[docs/USO.md](docs/USO.md)**.
 
 ---
 
+## Se algo não funcionar
+
+| O que aconteceu | O que fazer |
+|---|---|
+| Não acho o ícone | Clique na setinha **^** ao lado do relógio. Ele pode estar escondido ali |
+| O app parece travado na primeira abertura | Ele está baixando o modelo. Aperte `Ctrl + Alt + G` para ver o progresso |
+| Apertei o atalho e nada acontece | Outro programa pode estar usando a mesma combinação. Troque em **Configurações → Atalhos** |
+| Não capta a minha voz | Em **Configurações → Microfone**, fale e veja se a barra se mexe. Se ela não se mexer, use **Trocar o microfone no Windows**. Se ela se mexer e nada for escrito, use **Calibrar com a minha voz** |
+
+Outros casos, como fone Bluetooth e texto na janela errada, estão em
+**[Solução de problemas](docs/SOLUCAO-DE-PROBLEMAS.md)**.
+
+---
+
+## Desinstalar
+
+Vá em **Configurações do Windows → Aplicativos → Aplicativos Instalados →
+VozFlow → Desinstalar**. O desinstalador pergunta se você quer apagar também
+suas configurações e o histórico.
+
+O modelo de reconhecimento fica em `%USERPROFILE%\.cache\huggingface`. Para
+liberar esse espaço, apague essa pasta.
+
+---
+
 ## Atualização automática
 
-Ao abrir e a cada 6 horas, o VozFlow pergunta ao GitHub se saiu versão nova.
-Se saiu:
+Ao abrir e a cada 6 horas, o VozFlow pergunta a este repositório do GitHub se
+saiu versão nova. Se saiu:
 
 1. baixa o instalador em segundo plano;
 2. **confere a assinatura digital** da versão — cada uma é assinada com uma
@@ -190,8 +293,9 @@ já remove vozes de fundo antes do áudio chegar ao VozFlow.
 | **1.2.4** | Atualização automática com assinatura digital |
 | **1.2.5** | Menu da bandeja só com o essencial; o estado aparece passando o mouse no ícone |
 | **1.2.6** | Fim das frases inventadas ("Obrigado.", "Tchau.") em respiração e ruído; microfone analisado em blocos de 100 ms |
+| **1.2.7** | Um repositório só: o app passa a se atualizar por aqui; instalação explicada passo a passo |
 
-Cada mudança passou por testes automáticos (342 hoje, todos sem microfone,
+Cada mudança passou por testes automáticos (343 hoje, todos sem microfone,
 teclado ou internet reais) e por revisão independente antes de sair.
 O histórico completo está no **[CHANGELOG](CHANGELOG.md)**.
 
@@ -253,8 +357,7 @@ exemplo comentado, em **[docs/CONFIGURACAO.md](docs/CONFIGURACAO.md)**.
 > Vai mexer no código? **[Decisões técnicas](docs/DECISOES-TECNICAS.md) é a
 > leitura obrigatória.** Cada item de lá custou uma sessão de depuração — por
 > que a config guarda o *nome* do microfone e não o índice, por que `PgDn` e
-> `Num 3` são a mesma tecla para o Windows, por que a atualização baixa de um
-> repositório separado.
+> `Num 3` são a mesma tecla para o Windows, por que cada atualização é assinada.
 
 ---
 
@@ -284,7 +387,7 @@ VozFlow.spec                receita do empacotamento, com o motivo de cada corte
 instalador.iss              Inno Setup: instala sem administrador, atualiza em silêncio
 ```
 
-Cerca de 4.900 linhas de Python e 342 testes.
+Cerca de 4.900 linhas de Python e 343 testes.
 
 **Stack:** `faster-whisper` (CTranslate2) · CUDA float16 · `sounddevice`
 (PortAudio) + `webrtcvad` · PySide6 · `keyboard` · PyInstaller + Inno Setup.

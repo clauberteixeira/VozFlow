@@ -28,9 +28,10 @@ from PySide6 import QtCore
 
 from . import __version__, assinatura
 
-# Repositorio PUBLICO so com os instaladores: o do codigo e privado, e o
-# GitHub nao entrega Release de repositorio privado sem login.
-REPO = "clauberteixeira/VozFlow-releases"
+# Tem de ser PUBLICO: o GitHub nao entrega Release de repositorio privado sem
+# login. Trocar o endereco exige publicar a versao da troca nos dois lugares
+# (docs/DECISOES-TECNICAS.md).
+REPO = "clauberteixeira/VozFlow"
 API = f"https://api.github.com/repos/{REPO}/releases/latest"
 # Chave publica de quem publica (ferramentas/assinar.py). A privada nunca vai
 # para o GitHub: e ela que impede uma conta invadida de soltar um instalador.

@@ -551,6 +551,13 @@ def test_estado_com_bytes_invalidos_nao_impede_o_app_de_abrir(tmp_path, qapp):
     assert _atualizador(tmp_path).conferir_abertura() is None
 
 
+def test_atualiza_pelo_repositorio_do_projeto():
+    """O app so aceita anexos deste endereco: mudar o REPO sem publicar a
+    versao da troca nos dois lugares deixa os instalados sem atualizacao."""
+    assert atu.REPO == "clauberteixeira/VozFlow"
+    assert atu.API == "https://api.github.com/repos/clauberteixeira/VozFlow/releases/latest"
+
+
 def test_procura_pelo_menu_que_terminou_sem_nada_nao_apressa_a_proxima(montar):
     """Clicou com um download em andamento, e ele terminou sem instalador
     (rede caiu, ja era a mais nova): o pedido acabou ali."""

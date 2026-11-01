@@ -353,14 +353,23 @@ o `.exe`.
 Mas **regere o instalador mesmo assim** — senão uma reinstalação traz os bugs
 de volta.
 
-### A atualização automática baixa de um repositório público só de instaladores
+### A atualização automática baixa das Releases deste repositório
 
-O repositório do código é privado, e a API do GitHub responde 404 para Release
-de repositório privado sem login. Colocar um token dentro do app não serve:
-qualquer um que abrisse o instalador leria o token e o código. Por isso as
-versões são publicadas também em
-[VozFlow-releases](https://github.com/clauberteixeira/VozFlow-releases), que
-só tem os instaladores.
+O repositório precisa ser público: a API do GitHub responde 404 para Release de
+repositório privado sem login, e colocar um token dentro do app não serve,
+porque qualquer um que abrisse o instalador o leria. Da 1.2.4 à 1.2.6, com o
+código ainda privado no início, o app consultava um repositório público só de
+instaladores, o `VozFlow-releases`. Com o código público ele perdeu o motivo de
+existir, e a 1.2.7 passou a consultar este repositório.
+
+Essa troca não se resolve só apagando ou renomeando o repositório antigo. O app
+aceita anexos apenas do endereço exato de `REPO`, então um redirecionamento do
+GitHub seria recusado, e o 404 de um repositório apagado vira, para o app,
+"você já está na versão mais nova": ele deixaria de atualizar sem avisar
+ninguém. Por isso a versão que muda o `REPO` saiu **nos dois lugares**: os apps
+antigos a recebem pelo endereço velho e, dali em diante, seguem o novo. Só
+depois disso o repositório antigo pode sair. Se o `REPO` mudar de novo, o
+caminho é o mesmo.
 
 O SHA-256 publicado ao lado do instalador só prova que o arquivo chegou
 inteiro: quem subisse um instalador na Release (conta ou token do GitHub
