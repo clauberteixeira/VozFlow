@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <img alt="versão" src="https://img.shields.io/badge/vers%C3%A3o-1.2.7-2ea44f">
+  <img alt="versão" src="https://img.shields.io/badge/vers%C3%A3o-1.2.8-2ea44f">
   <img alt="plataforma" src="https://img.shields.io/badge/plataforma-Windows%2010%2F11-0078d4">
   <img alt="python" src="https://img.shields.io/badge/python-3.12-3776ab">
   <img alt="offline" src="https://img.shields.io/badge/100%25-offline-8a2be2">
@@ -294,10 +294,12 @@ já remove vozes de fundo antes do áudio chegar ao VozFlow.
 | **1.2.5** | Menu da bandeja só com o essencial; o estado aparece passando o mouse no ícone |
 | **1.2.6** | Fim das frases inventadas ("Obrigado.", "Tchau.") em respiração e ruído; microfone analisado em blocos de 100 ms |
 | **1.2.7** | Um repositório só: o app passa a se atualizar por aqui; instalação explicada passo a passo |
+| **1.2.8** | Aba Versões nas Configurações: o que mudou em cada versão, dentro do app e sem internet |
 
-Cada mudança passou por testes automáticos (343 hoje, todos sem microfone,
+Cada mudança passou por testes automáticos (356 hoje, todos sem microfone,
 teclado ou internet reais) e por revisão independente antes de sair.
-O histórico completo está no **[CHANGELOG](CHANGELOG.md)**.
+O histórico completo está no **[CHANGELOG](CHANGELOG.md)** e dentro do app, em
+**Configurações → Versões**.
 
 ---
 
@@ -330,9 +332,9 @@ Tudo em **[docs/DESEMPENHO.md](docs/DESEMPENHO.md)**.
 
 ## Configuração
 
-Tudo pela janela de configurações (botão direito na bandeja), em quatro abas:
-**Atalhos**, **Microfone** (medidor ao vivo e calibração), **Escrita** e
-**Geral**. Salvou, vale na hora.
+Tudo pela janela de configurações (botão direito na bandeja), em cinco abas:
+**Atalhos**, **Microfone** (medidor ao vivo e calibração), **Escrita**,
+**Geral** e **Versões** (o que mudou em cada versão). Salvou, vale na hora.
 
 Quem prefere o arquivo: `%APPDATA%\VozFlow\config.json`. Todas as chaves, com
 exemplo comentado, em **[docs/CONFIGURACAO.md](docs/CONFIGURACAO.md)**.
@@ -369,11 +371,12 @@ vozflow/
   app.py                    bandeja, atalhos globais, orquestração
   transcriber.py            motor faster-whisper em thread própria, prefixo estável
   audio.py                  microfone (segue o padrão do Windows) + VAD
-  configuracoes.py          janela de configurações (4 abas)
+  configuracoes.py          janela de configurações (5 abas)
   atalhos.py                captura e validação de teclas, teclas presas
   overlay.py                janela flutuante que não rouba foco
   calibracao.py             mede sua voz contra o ambiente
   atualizador.py            atualização automática pelo GitHub
+  versoes.py                lê o CHANGELOG para a aba Versões
   assinatura.py             Ed25519 (RFC 8032) para conferir as versões
   modelo.py                 download do modelo com progresso visível
   config.py                 config.json, padrões e migrações

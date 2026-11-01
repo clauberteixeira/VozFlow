@@ -180,7 +180,7 @@ aparecem a versão, o estado (carregando o modelo, pronto, erro) e os atalhos.
 
 ## Janela de configurações
 
-Tudo que dá para ajustar está aqui, em quatro abas. Salvou, vale na hora — só
+Tudo que dá para ajustar está aqui, em cinco abas. Salvou, vale na hora — só
 troca de modelo pede reiniciar.
 
 **Atalhos** — as três teclas (começar, encerrar, cancelar) e a opção *Reservar
@@ -198,6 +198,9 @@ escrever ao vivo enquanto fala, e apertar Enter ao encerrar.
 
 **Geral** — modelo, idioma, vocabulário, janela flutuante, sons, iniciar com o
 Windows, histórico, e um atalho para abrir o `config.json` cru.
+
+**Versões** — a versão instalada e o que mudou em cada uma, sem precisar de
+internet. Não tem nada para ajustar: é só para consultar.
 
 A referência completa de cada opção está em [Configuração](CONFIGURACAO.md).
 

@@ -145,6 +145,20 @@ Um commit por mudança lógica. Se você mexeu em três coisas, são três commi
 
 ---
 
+## Versões
+
+Toda mudança que quem usa o app percebe entra no [CHANGELOG](CHANGELOG.md) no
+mesmo commit, escrita para quem usa, não para quem programa. Entre um lançamento
+e outro, ela fica numa seção `## [Não lançado]` no topo, que vira a versão nova
+na hora de publicar.
+
+É do CHANGELOG que saem a aba **Versões** do app e o texto da Release. Os testes
+reprovam a versão nova sem entrada no CHANGELOG, sem link da Release ou fora do
+README. O passo a passo da publicação está em
+[Empacotamento](docs/EMPACOTAMENTO.md#publicando-uma-nova-versão).
+
+---
+
 ## Pull request
 
 - Aponte para a `main`.

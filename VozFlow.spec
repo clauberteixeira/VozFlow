@@ -46,6 +46,7 @@ for pacote in ("faster_whisper", "ctranslate2", "tokenizers", "sounddevice", "av
     binaries += b
     hiddenimports += h
 hiddenimports += ["keyboard", "pyperclip", "webrtcvad", "_webrtcvad"]
+datas.append((str(RAIZ / "CHANGELOG.md"), "."))   # aba Versoes (vozflow/versoes.py)
 
 # --- CUDA: so o cuBLAS, e so na versao GPU -----------------------------------
 CUBLAS = ["cublas64_12.dll", "cublasLt64_12.dll"]

@@ -134,8 +134,10 @@ versão própria, testada à parte.
 
 1. **Suba a versão** em `vozflow/__init__.py` (`__version__`) e em
    `instalador.iss` (`Versao`).
-2. Atualize o [CHANGELOG](../CHANGELOG.md).
-3. `python -m pytest -q` passa.
+2. Registre o que mudou: no [CHANGELOG](../CHANGELOG.md), a entrada no topo e o
+   link no fim; no README, o badge e a linha da tabela "O que já foi feito". O
+   CHANGELOG vai dentro do executável: é ele que aparece na aba Versões do app.
+3. `python -m pytest -q` passa. Sem o passo 2, os testes reprovam.
 4. `gerar-exe.bat` e depois `gerar-instalador.bat`. **Nessa ordem:** o
    `gerar-instalador.bat` só empacota se o `dist\` não existir, então sozinho
    ele aproveita o executável da versão anterior e o instalador novo sai com o
@@ -155,9 +157,9 @@ versão própria, testada à parte.
    aceitam versões novas (seria preciso reinstalar à mão uma versão com chave
    nova).
 8. Crie a **Release** com os **três** anexos: o instalador, o `.sha256` que o
-   `gerar-instalador.bat` grava ao lado dele e o `.sig`. Cole também o hash no
-   texto da Release, para quem baixa conferir que o arquivo é exatamente o que
-   você gerou:
+   `gerar-instalador.bat` grava ao lado dele e o `.sig`. O texto da Release é a
+   entrada da versão no CHANGELOG mais o hash, para quem baixa conferir que o
+   arquivo é exatamente o que você gerou:
 
    ```bat
    gh release create v<versão> instalador\VozFlow-<versão>-instalador.exe ^
@@ -213,7 +215,8 @@ de volta.
 ## Checklist antes de soltar uma versão
 
 - [ ] `__version__` subiu em `vozflow/__init__.py` e `Versao` em `instalador.iss`
-- [ ] CHANGELOG atualizado
+- [ ] CHANGELOG e README atualizados
+- [ ] A aba Versões do `.exe` gerado mostra a versão nova
 - [ ] `python -m pytest -q` passa
 - [ ] `.sha256` anexado e hash no texto da Release
 - [ ] `python -m vozflow.diagnostico` passa no ambiente de desenvolvimento

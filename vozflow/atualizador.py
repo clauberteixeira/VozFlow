@@ -331,7 +331,8 @@ class Atualizador(QtCore.QObject):
             estado.pop("tentada", None)
         vista = versao(estado.get("vista"))
         if msg is None and vista and agora and _maior(agora, vista):
-            msg = f"VozFlow atualizado para a versao {__version__}."
+            msg = (f"VozFlow atualizado para a versao {__version__}. "
+                   "O que mudou: Configuracoes > Versoes.")
         if estado.get("vista") != __version__ or msg:
             estado["vista"] = __version__
             gravar_estado(estado, self.pasta)

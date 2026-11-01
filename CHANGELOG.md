@@ -5,6 +5,24 @@ Versionamento [semântico](https://semver.org/lang/pt-BR/).
 
 ---
 
+## [1.2.8] — 2026-11-01
+
+### Novo — histórico de versões dentro do app
+
+- **Aba Versões nas Configurações.** Mostra a versão instalada e o que mudou em
+  cada uma, da mais nova para a mais antiga, sem precisar de internet.
+- **O aviso de atualização diz onde ver as novidades:** *"VozFlow atualizado
+  para a versão X. O que mudou: Configurações > Versões."*
+- **Nenhuma versão sai sem registro.** Um teste automático reprova a versão que
+  não estiver neste histórico e na página do projeto no GitHub.
+
+### Mudado
+
+- **Animação da página do GitHub mais fluida:** o texto entra letra por letra,
+  sem pausas longas.
+
+---
+
 ## [1.2.7] — 2026-11-01
 
 ### Mudado — um repositório só
@@ -328,6 +346,7 @@ para entender como o app chegou ao estado atual.
 
 ---
 
+[1.2.8]: https://github.com/clauberteixeira/VozFlow/releases/tag/v1.2.8
 [1.2.7]: https://github.com/clauberteixeira/VozFlow/releases/tag/v1.2.7
 [1.2.6]: https://github.com/clauberteixeira/VozFlow/releases/tag/v1.2.6
 [1.2.5]: https://github.com/clauberteixeira/VozFlow/releases/tag/v1.2.5

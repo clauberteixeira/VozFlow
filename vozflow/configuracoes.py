@@ -9,10 +9,10 @@ import os
 import threading
 
 import numpy as np
-from PySide6 import QtCore, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets
 
+from . import __version__, config, janela, versoes
 from . import atalhos as atl
-from . import config, janela
 from .audio import Recorder, nome_amigavel, nome_do_padrao, rms_level
 from .inserter import url_sem_criptografia
 from .overlay import POSICOES
@@ -50,6 +50,7 @@ class JanelaConfiguracoes(QtWidgets.QDialog):
         self.abas.addTab(self._aba_microfone(), "Microfone")
         self.abas.addTab(self._aba_escrita(), "Escrita")
         self.abas.addTab(self._aba_geral(startup_ativo), "Geral")
+        self.abas.addTab(self._aba_versoes(), "Versoes")
 
         self.aviso = QtWidgets.QLabel("")
         self.aviso.setWordWrap(True)
@@ -551,6 +552,35 @@ class JanelaConfiguracoes(QtWidgets.QDialog):
             os.startfile(str(config.CONFIG_PATH))  # noqa: S606
         except Exception:  # noqa: BLE001
             pass
+
+    # ==================================================================
+    # Aba: versoes
+    # ==================================================================
+    def _aba_versoes(self) -> QtWidgets.QWidget:
+        w = QtWidgets.QWidget()
+        atual = QtWidgets.QLabel("Voce esta na versao " + __version__ + ".")
+
+        caixa = QtWidgets.QTextBrowser()
+        # O clique vai para o navegador. Com o padrao, a caixa tentaria abrir o
+        # link ali dentro e o historico sumiria da tela.
+        caixa.setOpenLinks(False)
+        caixa.anchorClicked.connect(self._abrir_link)
+        caixa.setMarkdown(
+            versoes.como_markdown(versoes.ler_versoes())
+            or "Nao encontrei o historico nesta instalacao. Ele esta no "
+               "[CHANGELOG.md](CHANGELOG.md), no GitHub."
+        )
+
+        lay = QtWidgets.QVBoxLayout(w)
+        lay.setContentsMargins(16, 16, 16, 16)
+        lay.addWidget(atual)
+        lay.addWidget(caixa, 1)
+        return w
+
+    def _abrir_link(self, url: QtCore.QUrl) -> None:
+        """Os links do CHANGELOG sao relativos ao repositorio; os completos
+        passam direto pelo resolved()."""
+        QtGui.QDesktopServices.openUrl(QtCore.QUrl(versoes.URL_ARQUIVOS).resolved(url))
 
     # ==================================================================
     # Validacao e gravacao

@@ -12,5 +12,5 @@ import os
 # por minutos. E o classico ainda saiu mais rapido.
 os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
 
-__version__ = "1.2.7"
+__version__ = "1.2.8"
 APP_NAME = "VozFlow"
