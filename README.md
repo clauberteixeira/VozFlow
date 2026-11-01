@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/vozflow-demo.svg" alt="Ilustração: o texto vai aparecendo num campo de mensagem, palavra por palavra, enquanto a janelinha do VozFlow mostra que está ouvindo" width="860">
+  <img src="docs/vozflow-demo.svg" alt="Ilustração: o texto vai aparecendo num campo de mensagem, letra por letra, enquanto a janelinha do VozFlow mostra que está ouvindo" width="860">
 </p>
 
 <p align="center">
