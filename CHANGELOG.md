@@ -5,6 +5,18 @@ Versionamento [semântico](https://semver.org/lang/pt-BR/).
 
 ---
 
+## [Não lançado]
+
+### Melhorado
+
+- **Aviso dos atalhos mais curto e no lugar certo.** Com PgDn e PgUp, ele repetia
+  o mesmo texto para cada tecla, falava de controle remoto e aparecia em todas as
+  abas. Agora é uma frase só, cita as teclas juntas e fica na aba Atalhos. Com
+  "Reservar a tecla" marcado, a tecla de navegação não gera mais aviso, porque ela
+  deixa de rolar.
+
+---
+
 ## [1.2.8] — 2026-11-01
 
 ### Novo — histórico de versões dentro do app

@@ -1,6 +1,6 @@
 """Validacao de atalhos e guarda do teclado numerico (vozflow/atalhos.py)."""
 
-from vozflow import atalhos
+from vozflow import atalhos, config, configuracoes
 
 PADRAO = {
     "hotkey_start": "ctrl+alt+g", "hotkey_stop": "ctrl+alt+s",
@@ -50,12 +50,56 @@ def test_tecla_unica_alterna_e_valida():
 def test_tecla_de_navegacao_sozinha_gera_aviso():
     erro, aviso = atalhos.validar(_com(hotkey_start="page down", hotkey_stop="page down"))
     assert erro == ""
-    assert "rolar" in aviso and "Reservar a tecla" in aviso
+    assert "PgDn" in aviso and "rolar" in aviso and "Reservar a tecla" in aviso
+
+
+def test_duas_teclas_de_navegacao_saem_num_aviso_so():
+    valores = _com(hotkey_start="page down", hotkey_stop="page down",
+                   hotkey_start2="page up", hotkey_stop2="page up")
+    _, aviso = atalhos.validar(valores)
+    assert "PgDn e PgUp" in aviso
+    assert aviso.count("rolar") == 1
+    assert aviso.count("Reservar a tecla") == 1
+
+
+def test_tecla_de_navegacao_reservada_nao_rola_mais_e_nao_avisa():
+    valores = _com(hotkey_start="page down", hotkey_stop="page down")
+    assert atalhos.validar(valores, True) == ("", "")
 
 
 def test_tecla_de_digitacao_sozinha_gera_aviso():
-    _, aviso = atalhos.validar(_com(hotkey_start="a", hotkey_stop="a"), True)
-    assert "usada ao digitar" in aviso
+    valores = _com(hotkey_start="a", hotkey_stop="a", hotkey_start2="b", hotkey_stop2="b")
+    _, aviso = atalhos.validar(valores, True)
+    assert "A e B" in aviso
+    assert aviso.count("digitar") == 1
+
+
+def test_tecla_sem_modificador_lembra_de_reservar_uma_vez_so():
+    _, aviso = atalhos.validar(_com(hotkey_start="f9", hotkey_stop="f9"))
+    assert aviso.count("Reservar a tecla") == 1
+
+
+def _janela_com_pgdn():
+    cfg = config.Config(dict(config.DEFAULTS))
+    cfg.update(hotkey_start="page down", hotkey_stop="page down", suppress_hotkeys=False)
+    return configuracoes.JanelaConfiguracoes(cfg)
+
+
+def test_aviso_de_atalho_so_aparece_na_aba_atalhos(qapp):
+    dlg = _janela_com_pgdn()
+    assert "PgDn" in dlg.aviso.text()
+    dlg.abas.setCurrentIndex(4)
+    assert dlg.aviso.text() == ""
+    dlg.abas.setCurrentIndex(0)
+    assert "PgDn" in dlg.aviso.text()
+
+
+def test_erro_de_atalho_aparece_em_qualquer_aba(qapp):
+    """O erro impede de salvar: sumir com ele deixaria o Salvar sem explicacao."""
+    dlg = _janela_com_pgdn()
+    dlg.campos["hotkey_stop"].combo = ""
+    dlg.abas.setCurrentIndex(4)
+    assert "precisam de uma combinacao" in dlg.aviso.text()
 
 
 def test_bonito():

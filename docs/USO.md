@@ -28,9 +28,9 @@ Regras que a janela valida para você:
   aviso. É a escolha segura.
 - **Tecla de navegação sozinha** (`PgUp`, `PgDn`, `Home`, `End`, setas) recebe
   aviso: você aperta essas o tempo todo para rolar a página, e o VozFlow
-  ligaria sozinho. Só vale se a tecla vier de um controle remoto que não serve
-  para mais nada. *(Aprendido da forma difícil — a primeira pessoa a usar o app
-  escolheu `PgDn` e ele "ligava do nada" a cada rolagem.)*
+  ligaria junto. Com **"Reservar a tecla para o VozFlow"** marcado, ela deixa de
+  rolar e o aviso some. *(Aprendido da forma difícil — a primeira pessoa a usar o
+  app escolheu `PgDn` e ele "ligava do nada" a cada rolagem.)*
 - **Tecla de digitação sozinha** (letra, número, espaço) recebe aviso mais
   forte: dispararia no meio de qualquer texto.
 - Praticamente sem uso e portanto seguras sozinhas: `Pause`, `Scroll Lock`,

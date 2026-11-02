@@ -54,8 +54,9 @@ class JanelaConfiguracoes(QtWidgets.QDialog):
 
         self.aviso = QtWidgets.QLabel("")
         self.aviso.setWordWrap(True)
+        self.abas.currentChanged.connect(lambda _i: self._refrescar())
 
-        botoes = QtWidgets.QDialogButtonBox(
+        botoes =QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.Save | QtWidgets.QDialogButtonBox.Cancel
         )
         botoes.button(QtWidgets.QDialogButtonBox.Save).setText("Salvar")
@@ -593,7 +594,8 @@ class JanelaConfiguracoes(QtWidgets.QDialog):
         if erro:
             self.aviso.setStyleSheet("color:#c0392b;")
             self.aviso.setText(erro)
-        elif aviso:
+        elif aviso and self.abas.currentIndex() == 0:
+            # So o erro acompanha as outras abas: e ele que impede o Salvar.
             self.aviso.setStyleSheet("color:#c87f0a;")
             self.aviso.setText(aviso)
         else:

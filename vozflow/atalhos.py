@@ -136,6 +136,10 @@ def _segura_sozinha(tecla: str) -> bool:
     return tecla in SEGURAS_SOZINHAS or bool(re.fullmatch(r"f\d{1,2}", tecla))
 
 
+def _lista(nomes: list[str]) -> str:
+    return " e ".join(dict.fromkeys(nomes))    # comecar e encerrar podem ser iguais
+
+
 def validar(valores: dict, suprimir: bool = False) -> tuple[str, str]:
     """Devolve (erro, aviso). So o erro impede salvar."""
     if not valores.get("hotkey_start") or not valores.get("hotkey_stop"):
@@ -157,7 +161,7 @@ def validar(valores: dict, suprimir: bool = False) -> tuple[str, str]:
     if cancelar and cancelar in (par1 | par2):
         return "O atalho de cancelar precisa ser diferente dos outros.", ""
 
-    avisos = []
+    navegacao, digitacao = [], []
     tem_solta = False
     for combo in valores.values():
         if not combo:
@@ -176,24 +180,24 @@ def validar(valores: dict, suprimir: bool = False) -> tuple[str, str]:
 
         if not mods:
             if all(t in NAVEGACAO for t in teclas):
-                avisos.append(
-                    "Voce usa '" + bonito(combo) + "' para rolar e mover o cursor: "
-                    "o VozFlow vai ligar sozinho toda vez. So vale a pena se essa "
-                    "tecla vier de um controle remoto que voce nao usa para mais nada."
-                )
+                navegacao.append(bonito(combo))
             elif not all(_segura_sozinha(t) for t in teclas):
-                avisos.append(
-                    "'" + bonito(combo) + "' e uma tecla usada ao digitar: ela vai "
-                    "disparar o VozFlow no meio de qualquer texto que voce escrever."
-                )
+                digitacao.append(bonito(combo))
 
-    if tem_solta and not suprimir:
+    avisos = []
+    if digitacao:
+        avisos.append("Ao digitar " + _lista(digitacao) + " no meio de um texto, "
+                      "o VozFlow tambem liga. Escolha outra tecla.")
+    if navegacao and not suprimir:
+        avisos.append("Usar " + _lista(navegacao) + " para rolar ou mover o cursor "
+                      "tambem liga o VozFlow. Marque 'Reservar a tecla' para o "
+                      "atalho servir so ao VozFlow.")
+    elif tem_solta and not suprimir and not digitacao:
         avisos.append(
             "Tecla sem modificador continua fazendo a funcao normal dela ao "
             "mesmo tempo. Marque 'Reservar a tecla' para o VozFlow ficar com ela."
         )
-    unicos = list(dict.fromkeys(avisos))  # start e stop iguais = mesmo aviso
-    return "", "  ".join(unicos)
+    return "", "  ".join(avisos)
 
 
 PARADA_MINIMA_S = 2.5   # sem evento nenhum ha mais que isso: candidata a presa

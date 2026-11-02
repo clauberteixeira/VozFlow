@@ -296,7 +296,7 @@ já remove vozes de fundo antes do áudio chegar ao VozFlow.
 | **1.2.7** | Um repositório só: o app passa a se atualizar por aqui; instalação explicada passo a passo |
 | **1.2.8** | Aba Versões nas Configurações: o que mudou em cada versão, dentro do app e sem internet |
 
-Cada mudança passou por testes automáticos (356 hoje, todos sem microfone,
+Cada mudança passou por testes automáticos (361 hoje, todos sem microfone,
 teclado ou internet reais) e por revisão independente antes de sair.
 O histórico completo está no **[CHANGELOG](CHANGELOG.md)** e dentro do app, em
 **Configurações → Versões**.
