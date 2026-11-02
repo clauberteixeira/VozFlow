@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <img alt="versão" src="https://img.shields.io/badge/vers%C3%A3o-1.2.8-2ea44f">
+  <img alt="versão" src="https://img.shields.io/badge/vers%C3%A3o-1.2.9-2ea44f">
   <img alt="plataforma" src="https://img.shields.io/badge/plataforma-Windows%2010%2F11-0078d4">
   <img alt="python" src="https://img.shields.io/badge/python-3.12-3776ab">
   <img alt="offline" src="https://img.shields.io/badge/100%25-offline-8a2be2">
@@ -295,6 +295,7 @@ já remove vozes de fundo antes do áudio chegar ao VozFlow.
 | **1.2.6** | Fim das frases inventadas ("Obrigado.", "Tchau.") em respiração e ruído; microfone analisado em blocos de 100 ms |
 | **1.2.7** | Um repositório só: o app passa a se atualizar por aqui; instalação explicada passo a passo |
 | **1.2.8** | Aba Versões nas Configurações: o que mudou em cada versão, dentro do app e sem internet |
+| **1.2.9** | Aviso dos atalhos mais curto e só na aba Atalhos |
 
 Cada mudança passou por testes automáticos (361 hoje, todos sem microfone,
 teclado ou internet reais) e por revisão independente antes de sair.
